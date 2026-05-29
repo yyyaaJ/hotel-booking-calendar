@@ -674,7 +674,9 @@ let CONFIG = JSON.parse(localStorage.getItem('hotel_config') || 'null') || {
     { id: 'R202', name: '202', type: 'Suite',     price: 2500, priceWeekend: 3200 },
   ],
   specialPrices: [],
-  emailRoles: [],
+  emailRoles: [
+  { email: "vessawanchanathip@gmail.com", role: "admin" }
+],
 };
 if (!CONFIG.specialPrices) CONFIG.specialPrices = [];
 if (!CONFIG.emailRoles) CONFIG.emailRoles = [];
@@ -1110,7 +1112,7 @@ function renderRoomListCfg(){
     <div class="room-item" style="flex-wrap:wrap;gap:6px;">
       <input type="text" value="${r.name}" placeholder="เลขห้อง" onchange="CONFIG.rooms[${i}].name=this.value" style="width:60px;">
       <select onchange="CONFIG.rooms[${i}].type=this.value">
-        ${['Standard','Deluxe','Suite','Family','Villa'].map(t=>`<option${r.type===t?' selected':''}>${t}</option>`).join('')}
+        ${['Standard','Twin','Sweet','Superior','PoolView'].map(t=>`<option${r.type===t?' selected':''}>${t}</option>`).join('')}
       </select>
       <div style="display:flex;align-items:center;gap:4px;">
         <span style="font-size:11px;color:var(--text3);">จ-พฤ</span>
@@ -1208,15 +1210,13 @@ document.querySelectorAll('.modal-overlay').forEach(el=>{
 });
 
 // ─── AUTO CONNECT IF SAVED ────────────────────────────────────────────────────
-const savedFb=JSON.parse(localStorage.getItem('hotel_fb_cfg')||'null');
-if(savedFb?.apiKey){
-  initFirebase(savedFb);
-} else {
-  // Demo mode: skip auth, show everything
-  document.getElementById('login-screen').style.display='none';
-  document.getElementById('main-wrap').style.display='';
-  applyRole('admin'); // full access in demo
-}
+const savedFb = {
+  apiKey: "AIzaSyDdUXltt8kXUaKSz-d6vRW-TwhkWOt9VxA",
+  projectId: "z2-chic-calendar",
+  databaseURL: "https://z2-chic-calendar-default-rtdb.firebaseio.com",
+  authDomain: "z2-chic-calendar.firebaseapp.com",
+};
+initFirebase(savedFb);
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 renderAll();
