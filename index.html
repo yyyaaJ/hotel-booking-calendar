@@ -754,7 +754,7 @@ function renderCalendar() {
     for(let d=1;d<=days;d++){
       const cell=new Date(y,m,d);
       const isToday=cell.getTime()===TODAY.getTime();
-      const dow=cell.getDay(); const isWe=dow===0||dow===6;
+      const dow=cell.getDay(); const isWe=dow===5||dow===6;
       let bars='';
       BOOKINGS.forEach(bk=>{
         if(bk.room!==room.id) return;
