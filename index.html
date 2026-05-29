@@ -538,6 +538,7 @@ let firebaseConnected = false;
 let currentUser = null;   // Firebase user object
 window.currentRole = null;
 let currentRole = null;   // 'admin' | 'staff' | 'viewer' | null
+let authReady = false;
 
 // แก้เป็น — อ่านจาก CONFIG ใน memory โดยตรง
 function getRoleFromConfig(email) {
@@ -632,6 +633,7 @@ async function initFirebase(cfg) {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('access-denied').style.display = 'none';
       document.getElementById('main-wrap').style.display = '';
+      authReady = true;
       renderAll(); updateStats(); // เพิ่มบรรทัดนี้
     });
 
@@ -641,8 +643,7 @@ async function initFirebase(cfg) {
   BOOKINGS = Object.entries(data).map(([k,v]) => ({...v, id: k,
     checkin: new Date(v.checkin), checkout: new Date(v.checkout)}));
   window.BOOKINGS = BOOKINGS;
-  // รอให้ main-wrap แสดงก่อนค่อย render
-  if(document.getElementById('main-wrap').style.display !== 'none') {
+  if(authReady) {          // เปลี่ยนจาก display check เป็น flag
     renderAll(); updateStats();
   }
 });
