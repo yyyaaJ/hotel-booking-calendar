@@ -632,6 +632,7 @@ async function initFirebase(cfg) {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('access-denied').style.display = 'none';
       document.getElementById('main-wrap').style.display = '';
+      renderAll(); updateStats(); // เพิ่มบรรทัดนี้
     });
 
     // ── Bookings listener ───────────────────────────────────────────────────
@@ -640,7 +641,10 @@ async function initFirebase(cfg) {
   BOOKINGS = Object.entries(data).map(([k,v]) => ({...v, id: k,
     checkin: new Date(v.checkin), checkout: new Date(v.checkout)}));
   window.BOOKINGS = BOOKINGS;
-  renderAll(); updateStats();
+  // รอให้ main-wrap แสดงก่อนค่อย render
+  if(document.getElementById('main-wrap').style.display !== 'none') {
+    renderAll(); updateStats();
+  }
 });
 
     firebaseConnected = true;
@@ -687,12 +691,7 @@ let CONFIG = JSON.parse(localStorage.getItem('hotel_config') || 'null') || {
 if (!CONFIG.specialPrices) CONFIG.specialPrices = [];
 if (!CONFIG.emailRoles) CONFIG.emailRoles = [];
 
-let BOOKINGS = [
-  { id: 'demo1', room: 'R101', guest: 'คุณสมชาย มีดี', phone: '081-234-5678', pax: 2, checkin: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()-2), checkout: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+2), status: 'checkin', price: 800, totalAmount: 3200, note: '' },
-  { id: 'demo2', room: 'R102', guest: 'คุณมาลี รักสวย', phone: '089-876-5432', pax: 1, checkin: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()), checkout: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+3), status: 'booked', price: 900, totalAmount: 2700, note: 'ขอเตียงเดี่ยว' },
-  { id: 'demo3', room: 'R202', guest: 'คุณวิชัย สุขสันต์', phone: '062-555-0011', pax: 2, checkin: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+1), checkout: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+4), status: 'booked', price: 2500, totalAmount: 7500, note: '' },
-  { id: 'demo4', room: 'R103', guest: '— ซ่อมแซม', phone: '', pax: 0, checkin: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+5), checkout: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+7), status: 'blocked', price: 0, totalAmount: 0, note: 'ซ่อมแอร์' },
-];
+let BOOKINGS = [];
 
 window.CONFIG = CONFIG;
 
