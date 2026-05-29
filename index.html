@@ -636,11 +636,12 @@ async function initFirebase(cfg) {
 
     // ── Bookings listener ───────────────────────────────────────────────────
     fbOnValue(fbRef(db, 'bookings'), snap => {
-      const data = snap.val() || {};
-      BOOKINGS = Object.entries(data).map(([k,v]) => ({...v, id: k,
-        checkin: new Date(v.checkin), checkout: new Date(v.checkout)}));
-      renderAll(); updateStats();
-    });
+  const data = snap.val() || {};
+  BOOKINGS = Object.entries(data).map(([k,v]) => ({...v, id: k,
+    checkin: new Date(v.checkin), checkout: new Date(v.checkout)}));
+  window.BOOKINGS = BOOKINGS;
+  renderAll(); updateStats();
+});
 
     firebaseConnected = true;
     window.firebaseConnected = true;
@@ -693,7 +694,6 @@ let BOOKINGS = [
   { id: 'demo4', room: 'R103', guest: '— ซ่อมแซม', phone: '', pax: 0, checkin: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+5), checkout: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+7), status: 'blocked', price: 0, totalAmount: 0, note: 'ซ่อมแอร์' },
 ];
 
-window.BOOKINGS = BOOKINGS;
 window.CONFIG = CONFIG;
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
