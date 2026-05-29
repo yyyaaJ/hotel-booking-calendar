@@ -537,9 +537,9 @@ let firebaseConnected = false;
 let currentUser = null;   // Firebase user object
 let currentRole = null;   // 'admin' | 'staff' | 'viewer' | null
 
+// แก้เป็น — อ่านจาก CONFIG ใน memory โดยตรง
 function getRoleFromConfig(email) {
-  const cfg = JSON.parse(localStorage.getItem('hotel_config')||'{}');
-  const entry = (cfg.emailRoles||[]).find(e => e.email.toLowerCase()===email.toLowerCase());
+  const entry = (CONFIG.emailRoles||[]).find(e => e.email.toLowerCase()===email.toLowerCase());
   return entry ? entry.role : null;
 }
 
