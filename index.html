@@ -282,7 +282,7 @@ body.role-viewer .staff-only { display:none !important; }
   </div>
 
   <!-- STATS -->
-  <div class="stats-row admin-only">
+  <div class="stats-row">
     <div class="stat-card">
       <div class="stat-label">ห้องทั้งหมด</div>
       <div class="stat-value" id="s-rooms">—</div>
@@ -531,10 +531,12 @@ body.role-viewer .staff-only { display:none !important; }
 // ─── FIREBASE DYNAMIC IMPORT ────────────────────────────────────────────────
 let db = null;
 let fbRef, fbSet, fbOnValue, fbPush, fbRemove, fbUpdate;
+window.firebaseConnected = false;
 let firebaseConnected = false;
 
 // ─── AUTH STATE ──────────────────────────────────────────────────────────────
 let currentUser = null;   // Firebase user object
+window.currentRole = null;
 let currentRole = null;   // 'admin' | 'staff' | 'viewer' | null
 
 // แก้เป็น — อ่านจาก CONFIG ใน memory โดยตรง
@@ -545,6 +547,7 @@ function getRoleFromConfig(email) {
 
 function applyRole(role) {
   currentRole = role;
+  window.currentRole = role;
   document.body.classList.remove('role-admin','role-staff','role-viewer');
   if(role) document.body.classList.add('role-'+role);
 }
@@ -640,6 +643,7 @@ async function initFirebase(cfg) {
     });
 
     firebaseConnected = true;
+    window.firebaseConnected = true;
     document.getElementById('db-dot').className = 'db-dot connected';
     document.getElementById('db-label').textContent = 'เชื่อมต่อแล้ว';
     document.getElementById('setup-banner').style.display = 'none';
