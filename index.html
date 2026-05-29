@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบจองห้องพัก</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #F7F5F0;
+  --surface: #FFFFFF;
+  --surface2: #F0EDE6;
+  --border: #D8D3C8;
+  --border2: #C4BEB2;
+  --text: #1A1814;
+  --text2: #6B6560;
+  --text3: #9C968E;
+  --accent: #2C5F3E;
+  --accent-light: #E8F2EC;
+  --accent2: #8B4513;
+  --blue: #1A3C6B;
+  --blue-light: #E8EEF7;
+  --amber: #92600A;
+  --amber-light: #FDF3E3;
+  --red: #8B1A1A;
+  --red-light: #FDEAEA;
+  --radius: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 15px; }
+
+/* TOP BAR */
+.topbar { background: var(--text); color: #fff; padding: 0 1.5rem; display: flex; align-items: center; justify-content: space-between; height: 52px; position: sticky; top: 0; z-index: 100; }
+.topbar-brand { font-size: 14px; font-weight: 500; letter-spacing: 0.04em; display: flex; align-items: center; gap: 10px; }
+.topbar-brand span { opacity: 0.5; font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+.topbar-actions { display: flex; gap: 8px; }
+.btn { font-family: 'Sarabun', sans-serif; font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: var(--radius); border: 1px solid var(--border2); background: var(--surface); color: var(--text); cursor: pointer; transition: all 0.15s; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { background: var(--surface2); border-color: var(--text3); }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: #235030; border-color: #235030; }
+.btn-sm { padding: 5px 11px; font-size: 12px; }
+.btn-danger { background: var(--red-light); color: var(--red); border-color: #F0BDBD; }
+.btn-danger:hover { background: #FBDADA; }
+.btn-ghost { background: transparent; border-color: rgba(255,255,255,0.25); color: #fff; }
+.btn-ghost:hover { background: rgba(255,255,255,0.1); }
+
+/* LAYOUT */
+.main-wrap { max-width: 1280px; margin: 0 auto; padding: 1.5rem; }
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+.nav-month { display: flex; align-items: center; gap: 6px; }
+.month-label { font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 500; min-width: 120px; text-align: center; }
+.view-toggle { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.view-btn { padding: 6px 14px; font-size: 12px; font-weight: 500; background: var(--surface); color: var(--text2); border: none; cursor: pointer; transition: all 0.15s; font-family: 'Sarabun', sans-serif; }
+.view-btn.active { background: var(--text); color: #fff; }
+.spacer { flex: 1; }
+.search-box { position: relative; }
+.search-box input { padding: 7px 12px 7px 32px; border: 1px solid var(--border); border-radius: var(--radius); font-family: 'Sarabun', sans-serif; font-size: 13px; background: var(--surface); color: var(--text); width: 200px; }
+.search-box input:focus { outline: none; border-color: var(--accent); }
+.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 13px; }
+
+/* STATS */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 1.25rem; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.stat-label { font-size: 11px; color: var(--text3); margin-bottom: 4px; letter-spacing: 0.05em; text-transform: uppercase; }
+.stat-value { font-size: 26px; font-weight: 300; font-family: 'IBM Plex Mono', monospace; color: var(--text); }
+.stat-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* CALENDAR */
+.cal-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.cal-scroll { overflow-x: auto; }
+table.cal { width: 100%; border-collapse: collapse; min-width: 700px; }
+.cal th { font-size: 11px; font-weight: 500; color: var(--text3); padding: 8px 4px; text-align: center; border-bottom: 1px solid var(--border); background: var(--bg); letter-spacing: 0.03em; }
+.cal th.today-col { color: var(--accent); font-weight: 600; }
+.cal th.weekend-col { color: var(--amber); }
+.room-cell { font-size: 13px; padding: 0 12px; white-space: nowrap; border-right: 1px solid var(--border); background: var(--surface2); min-width: 100px; }
+.room-name { font-weight: 500; color: var(--text); }
+.room-type { font-size: 11px; color: var(--text3); }
+.day-td { border: 0.5px solid var(--border); height: 40px; position: relative; cursor: pointer; min-width: 30px; transition: background 0.1s; }
+.day-td:hover { background: var(--bg); }
+.day-td.today-cell { background: var(--accent-light) !important; }
+.day-td.weekend-cell { background: #FDFAF4; }
+.bbar { position: absolute; top: 5px; left: 0; right: 0; height: 28px; border-radius: 3px; display: flex; align-items: center; padding: 0 7px; font-size: 11px; font-weight: 500; white-space: nowrap; overflow: hidden; cursor: pointer; z-index: 2; }
+.bbar.ci { border-radius: 3px 0 0 3px; left: 3px; }
+.bbar.mid { border-radius: 0; }
+.bbar.co { border-radius: 0 3px 3px 0; right: 3px; }
+.bbar.booked { background: var(--blue-light); color: var(--blue); border-left: 3px solid var(--blue); }
+.bbar.checkin { background: var(--accent-light); color: var(--accent); border-left: 3px solid var(--accent); }
+.bbar.blocked { background: var(--surface2); color: var(--text3); border-left: 3px solid var(--border2); }
+.bbar.booked.mid, .bbar.booked.co { border-left: none; }
+.bbar.checkin.mid, .bbar.checkin.co { border-left: none; }
+.bbar.blocked.mid, .bbar.blocked.co { border-left: none; }
+.add-cell-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 20px; height: 20px; border-radius: 50%; background: var(--border); color: var(--text3); font-size: 14px; display: none; align-items: center; justify-content: center; z-index: 1; line-height: 1; }
+.day-td:hover .add-cell-btn { display: flex; }
+
+/* MODAL */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(20,18,15,0.55); z-index: 200; align-items: center; justify-content: center; padding: 1rem; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border-radius: 8px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
+.modal-header { padding: 1.25rem 1.5rem 1rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.modal-title { font-size: 16px; font-weight: 600; }
+.modal-close { width: 32px; height: 32px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--text2); }
+.modal-close:hover { background: var(--bg); }
+.modal-body { padding: 1.25rem 1.5rem; }
+.modal-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+.form-group { margin-bottom: 1rem; }
+.form-label { font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 5px; display: block; letter-spacing: 0.03em; }
+.form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-family: 'Sarabun', sans-serif; font-size: 14px; color: var(--text); background: var(--surface); transition: border-color 0.15s; }
+.form-control:focus { outline: none; border-color: var(--accent); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+select.form-control { cursor: pointer; }
+.status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.badge-booked { background: var(--blue-light); color: var(--blue); }
+.badge-checkin { background: var(--accent-light); color: var(--accent); }
+.badge-blocked { background: var(--surface2); color: var(--text3); }
+.price-summary { background: var(--bg); border-radius: var(--radius); padding: 12px 14px; margin-top: 4px; }
+.price-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+.price-row.total { font-weight: 600; font-size: 15px; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px; }
+
+/* TOOLTIP */
+.tip { display: none; position: fixed; background: var(--text); color: #fff; border-radius: var(--radius); padding: 10px 14px; font-size: 12px; z-index: 300; min-width: 200px; pointer-events: none; line-height: 1.6; }
+.tip p { color: rgba(255,255,255,0.65); }
+.tip strong { color: #fff; font-size: 13px; }
+
+/* TOAST */
+.toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--text); color: #fff; padding: 12px 18px; border-radius: var(--radius); font-size: 13px; z-index: 400; transform: translateY(80px); opacity: 0; transition: all 0.25s; max-width: 280px; }
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { border-left: 3px solid #5FC882; }
+.toast.error { border-left: 3px solid #E26565; }
+
+/* FIREBASE SETUP BANNER */
+.setup-banner { background: var(--amber-light); border: 1px solid #E8C070; border-radius: var(--radius); padding: 14px 18px; margin-bottom: 1.25rem; }
+.setup-banner h3 { font-size: 14px; font-weight: 600; color: var(--amber); margin-bottom: 6px; }
+.setup-banner p { font-size: 13px; color: #6B4A0A; line-height: 1.6; }
+.setup-banner code { background: rgba(0,0,0,0.08); padding: 1px 6px; border-radius: 3px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+
+/* CONFIG PANEL */
+.config-section { margin-bottom: 1rem; }
+.config-label { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 8px; display: block; letter-spacing: 0.04em; text-transform: uppercase; }
+.room-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.room-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface2); border-radius: var(--radius); font-size: 13px; }
+.room-item input { flex: 1; border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-family: 'Sarabun', sans-serif; font-size: 13px; background: var(--surface); }
+.room-item select { border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-family: 'Sarabun', sans-serif; font-size: 13px; background: var(--surface); }
+.sp-item { display:flex; align-items:center; gap:8px; padding:7px 12px; background:var(--accent-light); border-radius:var(--radius); font-size:13px; margin-bottom:5px; }
+.sp-item .sp-date { font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--accent); font-weight:500; min-width:90px; }
+.sp-item .sp-type { background:var(--accent); color:#fff; border-radius:20px; padding:2px 10px; font-size:11px; }
+.sp-item .sp-price { margin-left:auto; font-weight:500; color:var(--accent); }
+.sp-item button { margin-left:4px; }
+.day-td.special-cell { background: #E8F2EC !important; }
+.cal th.special-col { color: var(--accent); font-weight:600; }
+
+/* REPORT VIEW */
+.report-table-wrap { overflow-x: auto; }
+table.report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.report-table th { background: var(--surface2); padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--border); letter-spacing: 0.04em; text-transform: uppercase; }
+.report-table td { padding: 10px 12px; border-bottom: 0.5px solid var(--border); color: var(--text); }
+.report-table tr:hover td { background: var(--bg); }
+.report-table tfoot td { font-weight: 600; background: var(--surface2); border-top: 1px solid var(--border2); }
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .main-wrap { padding: 1rem; }
+  .form-row { grid-template-columns: 1fr; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .topbar-brand span { display: none; }
+  .search-box input { width: 140px; }
+  .toolbar { gap: 8px; }
+  .month-label { min-width: 90px; font-size: 13px; }
+}
+@media (max-width: 480px) {
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .view-toggle { display: none; }
+}
+
+/* EMPTY */
+.empty-state { text-align: center; padding: 3rem 1rem; color: var(--text3); }
+.empty-state .ico { font-size: 36px; margin-bottom: 12px; opacity: 0.4; }
+.empty-state p { font-size: 13px; }
+
+/* FIREBASE STATUS */
+.db-status { display: flex; align-items: center; gap: 6px; font-size: 11px; color: rgba(255,255,255,0.6); }
+.db-dot { width: 7px; height: 7px; border-radius: 50%; background: #aaa; }
+.db-dot.connected { background: #5FC882; }
+.db-dot.error { background: #E26565; }
+
+/* ─── AUTH ─────────────────────────────────────────────────────────────────── */
+#login-screen { position:fixed; inset:0; background:var(--bg); z-index:500; display:flex; align-items:center; justify-content:center; }
+.login-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:2.5rem 2rem; width:340px; text-align:center; }
+.login-logo { font-size:32px; margin-bottom:8px; }
+.login-title { font-size:18px; font-weight:500; margin-bottom:4px; }
+.login-sub { font-size:13px; color:var(--text3); margin-bottom:2rem; }
+.btn-google { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:11px 16px; border:1px solid var(--border2); border-radius:var(--radius); background:var(--surface); font-family:'Sarabun',sans-serif; font-size:14px; font-weight:500; cursor:pointer; transition:all 0.15s; }
+.btn-google:hover { background:var(--surface2); }
+.btn-google svg { width:18px; height:18px; flex-shrink:0; }
+.login-note { font-size:11px; color:var(--text3); margin-top:1rem; }
+.user-chip { display:flex; align-items:center; gap:8px; }
+.user-avatar { width:28px; height:28px; border-radius:50%; object-fit:cover; }
+.user-avatar-txt { width:28px; height:28px; border-radius:50%; background:var(--accent-light); color:var(--accent); font-size:11px; font-weight:600; display:flex; align-items:center; justify-content:center; }
+.user-name { font-size:12px; color:rgba(255,255,255,0.85); max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.role-badge { font-size:10px; padding:2px 7px; border-radius:20px; font-weight:600; }
+.role-admin { background:#5FC882; color:#0a3d1a; }
+.role-staff { background:#85B7EB; color:#042C53; }
+.role-viewer { background:#D3D1C7; color:#2C2C2A; }
+.btn-signout { background:transparent; border:1px solid rgba(255,255,255,0.2); border-radius:var(--radius); padding:4px 10px; font-size:11px; color:rgba(255,255,255,0.7); cursor:pointer; font-family:'Sarabun',sans-serif; }
+.btn-signout:hover { background:rgba(255,255,255,0.1); color:#fff; }
+#access-denied { position:fixed; inset:0; background:var(--bg); z-index:490; display:none; align-items:center; justify-content:center; }
+.denied-card { text-align:center; padding:2.5rem; }
+.denied-card h2 { font-size:18px; margin-bottom:8px; }
+.denied-card p { font-size:13px; color:var(--text3); margin-bottom:1.5rem; }
+body.role-staff .admin-only { display:none !important; }
+body.role-viewer .admin-only { display:none !important; }
+body.role-viewer .staff-only { display:none !important; }
+.email-item { display:flex; align-items:center; gap:8px; padding:7px 12px; background:var(--surface2); border-radius:var(--radius); font-size:13px; margin-bottom:5px; }
+.email-item .em-email { flex:1; font-family:'IBM Plex Mono',monospace; font-size:12px; }
+
+</style>
+</head>
+<body>
+
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">🏨</div>
+    <div class="login-title" id="login-hotel-name">ระบบจองห้องพัก</div>
+    <div class="login-sub">กรุณาเข้าสู่ระบบด้วย Google Account</div>
+    <button class="btn-google" onclick="signInWithGoogle()">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <div class="login-note" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ACCESS DENIED -->
+<div id="access-denied">
+  <div class="denied-card">
+    <div style="font-size:40px;margin-bottom:12px;">🚫</div>
+    <h2>ไม่มีสิทธิ์เข้าใช้งาน</h2>
+    <p>Email ของคุณไม่ได้รับอนุญาต<br><span id="denied-email" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text2);"></span></p>
+    <button class="btn" onclick="signOut()">ออกจากระบบ</button>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="topbar-brand">
+    🏨 ระบบจองห้องพัก
+    <span>HOTEL BOOKING v1.0</span>
+  </div>
+  <div class="topbar-actions">
+    <div class="db-status">
+      <div class="db-dot" id="db-dot"></div>
+      <span id="db-label">ไม่ได้เชื่อมต่อ</span>
+    </div>
+    <div class="user-chip" id="user-chip" style="display:none;">
+      <div id="user-avatar-wrap"></div>
+      <span class="user-name" id="user-name-txt"></span>
+      <span class="role-badge" id="role-badge-txt"></span>
+    </div>
+    <button class="btn btn-ghost btn-sm admin-only" onclick="openConfig()">⚙ ตั้งค่า</button>
+    <button class="btn btn-primary btn-sm staff-only" onclick="openAddBooking()">+ จองใหม่</button>
+    <button class="btn-signout" id="btn-signout" style="display:none;" onclick="signOut()">ออก</button>
+  </div>
+</div>
+
+<div class="main-wrap" id="main-wrap" style="display:none;">
+
+  <!-- FIREBASE SETUP BANNER -->
+  <div class="setup-banner" id="setup-banner">
+    <h3>🔧 ยังไม่ได้ตั้งค่า Firebase</h3>
+    <p>
+      กด <strong>⚙ ตั้งค่า</strong> แล้วใส่ Firebase Config ของคุณเพื่อเชื่อมต่อ database<br>
+      หากยังไม่มี Firebase: ไปที่ <code>console.firebase.google.com</code> → สร้างโปรเจกต์ → เพิ่ม Web App → คัดลอก config มาวาง<br>
+      <em>ในระหว่างนี้ระบบจะใช้ข้อมูลตัวอย่างแทน</em>
+    </p>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">ห้องทั้งหมด</div>
+      <div class="stat-value" id="s-rooms">—</div>
+      <div class="stat-sub">ห้อง</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">จองแล้ว (เดือนนี้)</div>
+      <div class="stat-value" id="s-booked">—</div>
+      <div class="stat-sub">รายการ</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Occupancy วันนี้</div>
+      <div class="stat-value" id="s-occ">—</div>
+      <div class="stat-sub">%</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">รายได้เดือนนี้</div>
+      <div class="stat-value" id="s-rev">—</div>
+      <div class="stat-sub">บาท</div>
+    </div>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <div class="nav-month">
+      <button class="btn btn-sm" onclick="changeMonth(-1)">‹</button>
+      <div class="month-label" id="month-label">—</div>
+      <button class="btn btn-sm" onclick="changeMonth(1)">›</button>
+      <button class="btn btn-sm" onclick="goToday()">วันนี้</button>
+    </div>
+    <div class="view-toggle">
+      <button class="view-btn active" id="vbtn-cal" onclick="setView('cal')">ปฏิทิน</button>
+      <button class="view-btn" id="vbtn-list" onclick="setView('list')">รายการ</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="ค้นหาชื่อ / ห้อง..." id="search-input" oninput="renderAll()">
+    </div>
+    <button class="btn btn-sm" onclick="exportExcel()">📊 Excel</button>
+    <button class="btn btn-sm" onclick="exportPDF()">📄 PDF</button>
+  </div>
+
+  <!-- CALENDAR VIEW -->
+  <div id="view-cal">
+    <div class="cal-wrap">
+      <div class="cal-scroll">
+        <table class="cal">
+          <thead id="cal-head"></thead>
+          <tbody id="cal-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIST VIEW -->
+  <div id="view-list" style="display:none;">
+    <div class="cal-wrap">
+      <div class="report-table-wrap">
+        <table class="report-table" id="list-table">
+          <thead>
+            <tr>
+              <th>ชื่อผู้จอง</th>
+              <th>ห้อง</th>
+              <th>เช็คอิน</th>
+              <th>เช็คเอาต์</th>
+              <th>คืน</th>
+              <th>ราคา/คืน</th>
+              <th>รวม</th>
+              <th>สถานะ</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="list-body"></tbody>
+          <tfoot id="list-foot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- TOOLTIP -->
+<div class="tip" id="tip"></div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- ===== BOOKING MODAL ===== -->
+<div class="modal-overlay" id="modal-booking">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-booking-title">เพิ่มการจอง</div>
+      <button class="modal-close" onclick="closeModal('modal-booking')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="f-id">
+      <div class="form-group">
+        <label class="form-label">ชื่อผู้จอง *</label>
+        <input type="text" class="form-control" id="f-guest" placeholder="ชื่อ-นามสกุล">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">เบอร์โทร</label>
+          <input type="tel" class="form-control" id="f-phone" placeholder="0xx-xxx-xxxx">
+        </div>
+        <div class="form-group">
+          <label class="form-label">จำนวนผู้เข้าพัก</label>
+          <input type="number" class="form-control" id="f-pax" value="1" min="1">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">ห้องพัก *</label>
+          <select class="form-control" id="f-room" onchange="calcPrice()"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">สถานะ</label>
+          <select class="form-control" id="f-status">
+            <option value="booked">จอง (ยังไม่เช็คอิน)</option>
+            <option value="checkin">เช็คอินแล้ว</option>
+            <option value="blocked">บล็อก / ปิดห้อง</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">วันเช็คอิน *</label>
+          <input type="date" class="form-control" id="f-checkin" onchange="calcPrice()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">วันเช็คเอาต์ *</label>
+          <input type="date" class="form-control" id="f-checkout" onchange="calcPrice()">
+        </div>
+      </div>
+      <div class="form-group" style="display:none;">
+        <label class="form-label">ราคาเฉลี่ย/คืน (คำนวณอัตโนมัติ)</label>
+        <input type="number" class="form-control" id="f-price" value="0" min="0">
+      </div>
+      <div class="price-summary" id="price-summary" style="display:none;">
+        <div id="ps-breakdown"></div>
+        <div class="price-row total"><span>รวม <span id="ps-nights"></span></span><span id="ps-total">฿0</span></div>
+      </div>
+      <div class="form-group" style="margin-top:1rem;">
+        <label class="form-label">หมายเหตุ</label>
+        <textarea class="form-control" id="f-note" rows="2" placeholder="ความต้องการพิเศษ..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm admin-only" id="btn-delete" onclick="deleteBooking()" style="display:none;">🗑 ลบ</button>
+      <button class="btn" onclick="closeModal('modal-booking')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveBooking()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CONFIG MODAL ===== -->
+<div class="modal-overlay" id="modal-config">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">⚙ ตั้งค่าระบบ</div>
+      <button class="modal-close" onclick="closeModal('modal-config')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="config-section">
+        <label class="config-label">🔥 Firebase Configuration</label>
+        <div class="form-group">
+          <label class="form-label">API Key</label>
+          <input type="text" class="form-control" id="cfg-apikey" placeholder="AIzaSy...">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Project ID</label>
+            <input type="text" class="form-control" id="cfg-projectid" placeholder="my-hotel-12345">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Database URL</label>
+            <input type="text" class="form-control" id="cfg-dburl" placeholder="https://...firebaseio.com">
+          </div>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="connectFirebase()">🔌 เชื่อมต่อ Firebase</button>
+      </div>
+      <hr style="border:none; border-top:1px solid var(--border); margin: 1.25rem 0;">
+      <div class="config-section">
+        <label class="config-label">🏠 จัดการห้องพัก</label>
+        <div class="room-list" id="room-list-cfg"></div>
+        <button class="btn btn-sm" onclick="addRoomCfg()">+ เพิ่มห้อง</button>
+      </div>
+      <hr style="border:none; border-top:1px solid var(--border); margin: 1.25rem 0;">
+      <div class="config-section">
+        <label class="config-label">🏷 ราคาพิเศษรายวัน</label>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">กำหนดราคาเฉพาะวัน เช่น วันหยุดยาว วันปีใหม่ — จะใช้แทนราคาธรรมดาและ ศ-ส</p>
+        <div id="sp-list"></div>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px;" id="sp-add-row">
+          <div>
+            <div class="form-label">วันที่</div>
+            <input type="date" class="form-control" id="sp-date" style="width:150px;">
+          </div>
+          <div>
+            <div class="form-label">ประเภทห้อง</div>
+            <select class="form-control" id="sp-type" style="width:130px;"></select>
+          </div>
+          <div>
+            <div class="form-label">ราคา (฿/คืน)</div>
+            <input type="number" class="form-control" id="sp-price" placeholder="0" style="width:110px;">
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="addSpecialPrice()">+ เพิ่ม</button>
+        </div>
+      </div>
+      <hr style="border:none; border-top:1px solid var(--border); margin: 1.25rem 0;">
+      <div class="config-section">
+        <label class="config-label">👥 จัดการสิทธิ์ผู้ใช้ (Email)</label>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">
+          กำหนดว่า email ใดมีสิทธิ์อะไร · <strong>admin</strong> = ทุกอย่าง · <strong>staff</strong> = ดู+เพิ่ม+แก้ไข · <strong>viewer</strong> = ดูอย่างเดียว
+        </p>
+        <div id="email-role-list"></div>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px;">
+          <div>
+            <div class="form-label">Email</div>
+            <input type="email" class="form-control" id="er-email" placeholder="staff@gmail.com" style="width:210px;">
+          </div>
+          <div>
+            <div class="form-label">สิทธิ์</div>
+            <select class="form-control" id="er-role" style="width:110px;">
+              <option value="admin">admin</option>
+              <option value="staff" selected>staff</option>
+              <option value="viewer">viewer</option>
+            </select>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="addEmailRole()">+ เพิ่ม</button>
+        </div>
+      </div>
+      <div class="config-section" style="margin-top:1rem;">
+        <label class="config-label">ชื่อโรงแรม</label>
+        <input type="text" class="form-control" id="cfg-hotelname" placeholder="ชื่อโรงแรม">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-config')">ปิด</button>
+      <button class="btn btn-primary" onclick="saveConfig()">💾 บันทึกการตั้งค่า</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+// ─── FIREBASE DYNAMIC IMPORT ────────────────────────────────────────────────
+let db = null;
+let fbRef, fbSet, fbOnValue, fbPush, fbRemove, fbUpdate;
+let firebaseConnected = false;
+
+// ─── AUTH STATE ──────────────────────────────────────────────────────────────
+let currentUser = null;   // Firebase user object
+let currentRole = null;   // 'admin' | 'staff' | 'viewer' | null
+
+function getRoleFromConfig(email) {
+  const cfg = JSON.parse(localStorage.getItem('hotel_config')||'{}');
+  const entry = (cfg.emailRoles||[]).find(e => e.email.toLowerCase()===email.toLowerCase());
+  return entry ? entry.role : null;
+}
+
+function applyRole(role) {
+  currentRole = role;
+  document.body.classList.remove('role-admin','role-staff','role-viewer');
+  if(role) document.body.classList.add('role-'+role);
+}
+
+function updateUserChip(user, role) {
+  const chip = document.getElementById('user-chip');
+  const nameEl = document.getElementById('user-name-txt');
+  const badgeEl = document.getElementById('role-badge-txt');
+  const avatarWrap = document.getElementById('user-avatar-wrap');
+  const signoutBtn = document.getElementById('btn-signout');
+  if(user) {
+    chip.style.display = 'flex';
+    signoutBtn.style.display = '';
+    nameEl.textContent = user.displayName || user.email;
+    badgeEl.textContent = role || 'viewer';
+    badgeEl.className = 'role-badge role-' + (role||'viewer');
+    if(user.photoURL) {
+      avatarWrap.innerHTML = `<img class="user-avatar" src="${user.photoURL}">`;
+    } else {
+      const init = (user.displayName||user.email||'?')[0].toUpperCase();
+      avatarWrap.innerHTML = `<div class="user-avatar-txt">${init}</div>`;
+    }
+  } else {
+    chip.style.display = 'none';
+    signoutBtn.style.display = 'none';
+  }
+}
+
+async function initFirebase(cfg) {
+  try {
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const { getDatabase, ref, set, onValue, push, remove, update } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+    const { getAuth, GoogleAuthProvider, signInWithPopup, signOut: fbSignOut, onAuthStateChanged }
+      = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+
+    const appInstance = initializeApp(cfg, 'hotel-' + Date.now());
+    db = getDatabase(appInstance);
+    const auth = getAuth(appInstance);
+    const provider = new GoogleAuthProvider();
+
+    fbRef = ref; fbSet = set; fbOnValue = onValue; fbPush = push; fbRemove = remove; fbUpdate = update;
+
+    // ── Sign-in / Sign-out ──────────────────────────────────────────────────
+    window.signInWithGoogle = async function() {
+      try {
+        document.getElementById('login-error').textContent = 'กำลังเข้าสู่ระบบ...';
+        await signInWithPopup(auth, provider);
+      } catch(e) {
+        document.getElementById('login-error').textContent = 'เข้าสู่ระบบไม่สำเร็จ: ' + e.message;
+      }
+    };
+
+    window.signOut = async function() {
+      await fbSignOut(auth);
+      applyRole(null);
+      updateUserChip(null, null);
+      document.getElementById('login-screen').style.display = 'flex';
+    };
+
+    // ── Auth state observer ─────────────────────────────────────────────────
+    onAuthStateChanged(auth, user => {
+      if(!user) {
+        // Not signed in
+        currentUser = null;
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('access-denied').style.display = 'none';
+        return;
+      }
+      const role = getRoleFromConfig(user.email);
+      if(!role) {
+        // Signed in but not in the whitelist
+        currentUser = user;
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('access-denied').style.display = 'flex';
+        document.getElementById('denied-email').textContent = user.email;
+        return;
+      }
+      // Authorised
+      currentUser = user;
+      applyRole(role);
+      updateUserChip(user, role);
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('access-denied').style.display = 'none';
+      document.getElementById('main-wrap').style.display = '';
+    });
+
+    // ── Bookings listener ───────────────────────────────────────────────────
+    fbOnValue(fbRef(db, 'bookings'), snap => {
+      const data = snap.val() || {};
+      BOOKINGS = Object.entries(data).map(([k,v]) => ({...v, id: k,
+        checkin: new Date(v.checkin), checkout: new Date(v.checkout)}));
+      renderAll(); updateStats();
+    });
+
+    firebaseConnected = true;
+    document.getElementById('db-dot').className = 'db-dot connected';
+    document.getElementById('db-label').textContent = 'เชื่อมต่อแล้ว';
+    document.getElementById('setup-banner').style.display = 'none';
+  } catch(e) {
+    document.getElementById('db-dot').className = 'db-dot error';
+    document.getElementById('db-label').textContent = 'เชื่อมต่อไม่ได้';
+    showToast('Firebase error: ' + e.message, 'error');
+  }
+}
+
+// Fallback (demo mode, no Firebase)
+window.signInWithGoogle = function(){
+  showToast('ต้องเชื่อมต่อ Firebase ก่อนถึงจะ Sign in ได้','error');
+};
+window.signOut = function(){
+  document.getElementById('login-screen').style.display='flex';
+};
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const TODAY = new Date();
+TODAY.setHours(0,0,0,0);
+let curYear = TODAY.getFullYear(), curMonth = TODAY.getMonth();
+let currentView = 'cal';
+
+let CONFIG = JSON.parse(localStorage.getItem('hotel_config') || 'null') || {
+  hotelName: 'โรงแรมของฉัน',
+  rooms: [
+    { id: 'R101', name: '101', type: 'Standard', price: 800,  priceWeekend: 1000 },
+    { id: 'R102', name: '102', type: 'Standard', price: 800,  priceWeekend: 1000 },
+    { id: 'R103', name: '103', type: 'Deluxe',   price: 1200, priceWeekend: 1500 },
+    { id: 'R201', name: '201', type: 'Deluxe',   price: 1200, priceWeekend: 1500 },
+    { id: 'R202', name: '202', type: 'Suite',     price: 2500, priceWeekend: 3200 },
+  ],
+  specialPrices: [],
+  emailRoles: [],
+};
+if (!CONFIG.specialPrices) CONFIG.specialPrices = [];
+if (!CONFIG.emailRoles) CONFIG.emailRoles = [];
+
+let BOOKINGS = [
+  { id: 'demo1', room: 'R101', guest: 'คุณสมชาย มีดี', phone: '081-234-5678', pax: 2, checkin: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()-2), checkout: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+2), status: 'checkin', price: 800, totalAmount: 3200, note: '' },
+  { id: 'demo2', room: 'R102', guest: 'คุณมาลี รักสวย', phone: '089-876-5432', pax: 1, checkin: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()), checkout: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+3), status: 'booked', price: 900, totalAmount: 2700, note: 'ขอเตียงเดี่ยว' },
+  { id: 'demo3', room: 'R202', guest: 'คุณวิชัย สุขสันต์', phone: '062-555-0011', pax: 2, checkin: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+1), checkout: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+4), status: 'booked', price: 2500, totalAmount: 7500, note: '' },
+  { id: 'demo4', room: 'R103', guest: '— ซ่อมแซม', phone: '', pax: 0, checkin: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+5), checkout: new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()+7), status: 'blocked', price: 0, totalAmount: 0, note: 'ซ่อมแอร์' },
+];
+
+window.BOOKINGS = BOOKINGS;
+window.CONFIG = CONFIG;
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function daysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
+function dateStr(d){ return d instanceof Date ? d.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'}) : d; }
+function isoStr(d){ if(!d) return ''; const dt = d instanceof Date ? d : new Date(d); return dt.toISOString().split('T')[0]; }
+function parseDate(s){ const d=new Date(s); d.setHours(0,0,0,0); return d; }
+function nights(ci,co){ return Math.max(0,Math.round((co-ci)/864e5)); }
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  setTimeout(()=>t.className='toast',3000);
+}
+
+function statusLabel(s){ return {booked:'จอง',checkin:'เช็คอินแล้ว',blocked:'บล็อก'}[s]||s; }
+function statusClass(s){ return {booked:'badge-booked',checkin:'badge-checkin',blocked:'badge-blocked'}[s]||''; }
+
+window.showTip = function(e, id) {
+  const bk = BOOKINGS.find(b=>b.id===id); if(!bk) return;
+  const room = CONFIG.rooms.find(r=>r.id===bk.room);
+  const n = nights(bk.checkin, bk.checkout);
+  const tip = document.getElementById('tip');
+  const amt=bk.totalAmount||nights(bk.checkin,bk.checkout)*bk.price;
+  tip.innerHTML = `<strong>${bk.guest}</strong><p>ห้อง ${room?.name||bk.room} · ${n} คืน</p><p>${dateStr(bk.checkin)} → ${dateStr(bk.checkout)}</p>${bk.phone?`<p>📞 ${bk.phone}</p>`:''}<p>สถานะ: ${statusLabel(bk.status)}${amt?` · ฿${amt.toLocaleString()}`:''}  </p>${bk.note?`<p>📝 ${bk.note}</p>`:''}`;
+  tip.style.display = 'block';
+  tip.style.left = Math.min(e.clientX+12, window.innerWidth-220)+'px';
+  tip.style.top = Math.max(e.clientY-10, 10)+'px';
+}
+window.hideTip = function(){ document.getElementById('tip').style.display='none'; }
+
+// ─── RENDER CALENDAR ─────────────────────────────────────────────────────────
+function renderCalendar() {
+  const y=curYear, m=curMonth, days=daysInMonth(y,m);
+  const thMon=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  document.getElementById('month-label').textContent = thMon[m]+' '+(y+543);
+
+  const q = document.getElementById('search-input').value.toLowerCase();
+
+  let h='<tr><th style="text-align:left;min-width:90px;padding:8px 12px;">ห้อง</th>';
+  for(let d=1;d<=days;d++){
+    const dt=new Date(y,m,d), dow=dt.getDay();
+    const isToday=dt.getTime()===TODAY.getTime();
+    const isWe=dow===5||dow===6;
+    const types=[...new Set(CONFIG.rooms.map(r=>r.type))];
+    const isSp=types.some(t=>getSpecialPrice(dt,t)!==null);
+    const cls=isToday?'today-col':isSp?'special-col':isWe?'weekend-col':'';
+    const dn=['อา','จ','อ','พ','พฤ','ศ','ส'];
+    h+=`<th class="${cls}">${d}<br><span style="font-weight:400;font-size:10px;">${dn[dow]}</span></th>`;
+  }
+  h+='</tr>';
+  document.getElementById('cal-head').innerHTML=h;
+
+  let body='';
+  CONFIG.rooms.forEach(room=>{
+    if(q && !room.name.toLowerCase().includes(q) && !room.type.toLowerCase().includes(q)){
+      const hasBk = BOOKINGS.some(b=>b.room===room.id && (b.guest.toLowerCase().includes(q)||b.phone.includes(q)));
+      if(!hasBk) return;
+    }
+    body+=`<tr><td class="room-cell"><div class="room-name">${room.name}</div><div class="room-type">${room.type}</div></td>`;
+    for(let d=1;d<=days;d++){
+      const cell=new Date(y,m,d);
+      const isToday=cell.getTime()===TODAY.getTime();
+      const dow=cell.getDay(); const isWe=dow===0||dow===6;
+      let bars='';
+      BOOKINGS.forEach(bk=>{
+        if(bk.room!==room.id) return;
+        if(q && !bk.guest.toLowerCase().includes(q) && !bk.phone.includes(q) && !room.name.includes(q)) return;
+        const ci=bk.checkin, co=bk.checkout;
+        if(cell>=ci && cell<co){
+          const isFirst=cell.getTime()===ci.getTime();
+          const isLast=new Date(cell.getTime()+864e5).getTime()===co.getTime();
+          const pos=isFirst?'ci':(isLast?'co':'mid');
+          const lbl=isFirst?(bk.guest.length>12?bk.guest.slice(0,12)+'…':bk.guest):'';
+          bars+=`<div class="bbar ${pos} ${bk.status}" onmouseenter="showTip(event,'${bk.id}')" onmouseleave="hideTip()" onclick="openEditBooking('${bk.id}');event.stopPropagation();">${lbl}</div>`;
+        }
+      });
+      const hasBooking = BOOKINGS.some(bk=>bk.room===room.id && cell>=bk.checkin && cell<bk.checkout);
+      const isCellSp = getSpecialPrice(cell, room.type) !== null;
+      const cellCls = isToday?' today-cell': isCellSp?' special-cell': isWe?' weekend-cell':'';
+      body+=`<td class="day-td${cellCls}" onclick="openAddBookingOnCell('${room.id}','${isoStr(cell)}')">${bars}${!hasBooking?`<div class="add-cell-btn">+</div>`:''}</td>`;
+    }
+    body+='</tr>';
+  });
+  if(!body) body=`<tr><td colspan="100"><div class="empty-state"><div class="ico">🔍</div><p>ไม่พบผลลัพธ์</p></div></td></tr>`;
+  document.getElementById('cal-body').innerHTML=body;
+}
+
+// ─── RENDER LIST ─────────────────────────────────────────────────────────────
+function renderList() {
+  const q=document.getElementById('search-input').value.toLowerCase();
+  const y=curYear, m=curMonth;
+  const start=new Date(y,m,1), end=new Date(y,m+1,0,23,59,59);
+
+  const filtered = BOOKINGS.filter(bk=>{
+    const overlap = bk.checkin<=end && bk.checkout>=start;
+    if(!overlap) return false;
+    if(q) return bk.guest.toLowerCase().includes(q)||bk.phone.includes(q)||(CONFIG.rooms.find(r=>r.id===bk.room)?.name||'').includes(q);
+    return true;
+  }).sort((a,b)=>a.checkin-b.checkin);
+
+  let rows='', total=0;
+  filtered.forEach(bk=>{
+    const room=CONFIG.rooms.find(r=>r.id===bk.room);
+    const n=nights(bk.checkin,bk.checkout);
+    const amt=bk.totalAmount||n*bk.price;
+    total+=amt;
+    rows+=`<tr>
+      <td>${bk.guest}</td>
+      <td>${room?.name||bk.room} <span style="color:var(--text3);font-size:11px;">${room?.type||''}</span></td>
+      <td>${dateStr(bk.checkin)}</td>
+      <td>${dateStr(bk.checkout)}</td>
+      <td style="text-align:center;">${n}</td>
+      <td style="font-size:12px;color:var(--text2);">ธรรมดา ฿${(room?.price||bk.price).toLocaleString()}<br><span style="color:var(--amber);">ศ-ส ฿${(room?.priceWeekend||room?.price||bk.price).toLocaleString()}</span></td>
+      <td><strong>฿${amt.toLocaleString()}</strong></td>
+      <td><span class="status-badge ${statusClass(bk.status)}">${statusLabel(bk.status)}</span></td>
+      <td><button class="btn btn-sm" onclick="openEditBooking('${bk.id}')">แก้ไข</button></td>
+    </tr>`;
+  });
+  if(!rows) rows=`<tr><td colspan="9"><div class="empty-state"><div class="ico">📋</div><p>ไม่มีการจองในเดือนนี้</p></div></td></tr>`;
+  document.getElementById('list-body').innerHTML=rows;
+  document.getElementById('list-foot').innerHTML=`<tr><td colspan="6" style="text-align:right;">รวม ${filtered.length} รายการ</td><td>฿${total.toLocaleString()}</td><td colspan="2"></td></tr>`;
+}
+
+// ─── STATS ───────────────────────────────────────────────────────────────────
+function updateStats() {
+  const y=curYear, m=curMonth;
+  const start=new Date(y,m,1), end=new Date(y,m+1,0,23,59,59);
+  const monthBk=BOOKINGS.filter(bk=>bk.checkin<=end&&bk.checkout>=start&&bk.status!=='blocked');
+  const rev=monthBk.reduce((s,bk)=>s+(bk.totalAmount||nights(bk.checkin,bk.checkout)*bk.price),0);
+  const todayOcc=BOOKINGS.filter(bk=>bk.status!=='blocked'&&bk.checkin<=TODAY&&bk.checkout>TODAY).length;
+  const occPct=CONFIG.rooms.length?Math.round(todayOcc/CONFIG.rooms.length*100):0;
+  document.getElementById('s-rooms').textContent=CONFIG.rooms.length;
+  document.getElementById('s-booked').textContent=monthBk.length;
+  document.getElementById('s-occ').textContent=occPct+'%';
+  document.getElementById('s-rev').textContent=rev.toLocaleString();
+}
+
+// ─── RENDER ALL ──────────────────────────────────────────────────────────────
+window.renderAll = function(){
+  if(currentView==='cal') renderCalendar();
+  else renderList();
+  updateStats();
+}
+
+window.changeMonth = function(d){
+  curMonth+=d;
+  if(curMonth>11){curMonth=0;curYear++;}
+  if(curMonth<0){curMonth=11;curYear--;}
+  renderAll();
+}
+window.goToday = function(){ curYear=TODAY.getFullYear(); curMonth=TODAY.getMonth(); renderAll(); }
+window.setView = function(v){
+  currentView=v;
+  document.getElementById('view-cal').style.display=v==='cal'?'':'none';
+  document.getElementById('view-list').style.display=v==='list'?'':'none';
+  document.getElementById('vbtn-cal').className='view-btn'+(v==='cal'?' active':'');
+  document.getElementById('vbtn-list').className='view-btn'+(v==='list'?' active':'');
+  renderAll();
+}
+
+// ─── MODAL HELPERS ───────────────────────────────────────────────────────────
+window.closeModal = function(id){ document.getElementById(id).classList.remove('open'); }
+
+function populateRoomSelect(){
+  const sel=document.getElementById('f-room');
+  sel.innerHTML=CONFIG.rooms.map(r=>`<option value="${r.id}">ห้อง ${r.name} (${r.type}) — ธรรมดา ฿${r.price} / ศ-ส ฿${r.priceWeekend||r.price}</option>`).join('');
+}
+
+// คำนวณราคาตามวัน: ศุกร์(5) เสาร์(6) = weekend
+// หาราคาพิเศษของวันนั้น ๆ ตามประเภทห้อง (คืนค่า null ถ้าไม่มี)
+function getSpecialPrice(date, roomType) {
+  const key = isoStr(date);
+  const sp = (CONFIG.specialPrices||[]).find(s => s.date===key && s.roomType===roomType);
+  return sp ? sp.price : null;
+}
+
+function calcTotalByDate(ci, co, priceWd, priceWe, roomType) {
+  let wd=0, we=0, sp=0, total=0;
+  const breakdown = [];  // [{label, nights, rate, amount}]
+  const spDays = {};     // date -> price สำหรับ group วันพิเศษต่อเนื่อง
+
+  const cur = new Date(ci);
+  while(cur < co){
+    const dow = cur.getDay();
+    const specialRate = roomType ? getSpecialPrice(cur, roomType) : null;
+    if(specialRate !== null){
+      const key = String(specialRate);
+      spDays[key] = (spDays[key]||0) + 1;
+      total += specialRate;
+    } else if(dow===5||dow===6){
+      we++; total+=priceWe;
+    } else {
+      wd++; total+=priceWd;
+    }
+    cur.setDate(cur.getDate()+1);
+  }
+  if(wd>0) breakdown.push({label:'วันธรรมดา', nights:wd, rate:priceWd, amount:wd*priceWd, type:'wd'});
+  if(we>0) breakdown.push({label:'ศุกร์-เสาร์', nights:we, rate:priceWe, amount:we*priceWe, type:'we'});
+  Object.entries(spDays).forEach(([rate,n])=>{
+    breakdown.push({label:'ราคาพิเศษ', nights:n, rate:+rate, amount:n*(+rate), type:'sp'});
+  });
+  return { wd, we, sp: Object.values(spDays).reduce((a,b)=>a+b,0), total, breakdown };
+}
+
+window.calcPrice = function(){
+  const ci=document.getElementById('f-checkin').value;
+  const co=document.getElementById('f-checkout').value;
+  const roomId=document.getElementById('f-room').value;
+  const room=CONFIG.rooms.find(r=>r.id===roomId);
+  if(!ci||!co||!room) return;
+  const ciD=parseDate(ci), coD=parseDate(co);
+  if(coD<=ciD){ document.getElementById('price-summary').style.display='none'; return; }
+  const priceWd=room.price||0;
+  const priceWe=room.priceWeekend||room.price||0;
+  const {total,breakdown}=calcTotalByDate(ciD,coD,priceWd,priceWe,room.type);
+  const n=nights(ciD,coD);
+  document.getElementById('f-price').value=n>0?Math.round(total/n):priceWd;
+  const colors={'wd':'','we':'color:var(--amber);','sp':'color:var(--accent);font-weight:500;'};
+  const bdHTML=breakdown.map(b=>`<div class="price-row" style="${colors[b.type]||''}"><span>${b.label} ${b.nights} คืน × ฿${b.rate.toLocaleString()}</span><span>฿${b.amount.toLocaleString()}</span></div>`).join('');
+  document.getElementById('ps-breakdown').innerHTML=bdHTML;
+  document.getElementById('ps-nights').textContent=n+' คืน';
+  document.getElementById('ps-total').textContent='฿'+total.toLocaleString();
+  document.getElementById('price-summary').style.display='block';
+}
+
+window.openAddBooking = function(){
+  populateRoomSelect();
+  document.getElementById('f-id').value='';
+  document.getElementById('f-guest').value='';
+  document.getElementById('f-phone').value='';
+  document.getElementById('f-pax').value=1;
+  document.getElementById('f-status').value='booked';
+  document.getElementById('f-checkin').value=isoStr(TODAY);
+  const tmr=new Date(TODAY); tmr.setDate(tmr.getDate()+1);
+  document.getElementById('f-checkout').value=isoStr(tmr);
+  document.getElementById('f-note').value='';
+  const room=CONFIG.rooms[0];
+  document.getElementById('f-price').value=room?.price||0;
+  document.getElementById('btn-delete').style.display='none';
+  document.getElementById('modal-booking-title').textContent='เพิ่มการจอง';
+  calcPrice();
+  document.getElementById('modal-booking').classList.add('open');
+}
+
+window.openAddBookingOnCell = function(roomId, dateStr){
+  openAddBooking();
+  document.getElementById('f-room').value=roomId;
+  document.getElementById('f-checkin').value=dateStr;
+  const nxt=new Date(dateStr); nxt.setDate(nxt.getDate()+1);
+  document.getElementById('f-checkout').value=isoStr(nxt);
+  calcPrice();
+}
+
+window.openEditBooking = function(id){
+  const bk=BOOKINGS.find(b=>b.id===id); if(!bk) return;
+  populateRoomSelect();
+  document.getElementById('f-id').value=id;
+  document.getElementById('f-guest').value=bk.guest;
+  document.getElementById('f-phone').value=bk.phone||'';
+  document.getElementById('f-pax').value=bk.pax||1;
+  document.getElementById('f-room').value=bk.room;
+  document.getElementById('f-status').value=bk.status;
+  document.getElementById('f-checkin').value=isoStr(bk.checkin);
+  document.getElementById('f-checkout').value=isoStr(bk.checkout);
+  document.getElementById('f-price').value=bk.price;
+  document.getElementById('f-note').value=bk.note||'';
+  document.getElementById('btn-delete').style.display='inline-flex';
+  document.getElementById('modal-booking-title').textContent='แก้ไขการจอง';
+  calcPrice();
+  document.getElementById('modal-booking').classList.add('open');
+}
+
+// ─── SAVE / DELETE ───────────────────────────────────────────────────────────
+window.saveBooking = async function(){
+  if(currentRole==='viewer'){ showToast('ไม่มีสิทธิ์บันทึก','error'); return; }
+  const guest=document.getElementById('f-guest').value.trim();
+  const ci=document.getElementById('f-checkin').value;
+  const co=document.getElementById('f-checkout').value;
+  const roomId=document.getElementById('f-room').value;
+  if(!guest||!ci||!co||!roomId){ showToast('กรุณากรอกข้อมูลให้ครบ','error'); return; }
+  if(ci>=co){ showToast('วันเช็คเอาต์ต้องหลังวันเช็คอิน','error'); return; }
+
+  const room=CONFIG.rooms.find(r=>r.id===roomId)||{};
+  const ciD=parseDate(ci), coD=parseDate(co);
+  const priceWd=room.price||0, priceWe=room.priceWeekend||room.price||0;
+  const {total}=calcTotalByDate(ciD,coD,priceWd,priceWe,room.type);
+  const n=nights(ciD,coD);
+
+  const id=document.getElementById('f-id').value;
+  const data = {
+    guest, room: roomId,
+    phone: document.getElementById('f-phone').value,
+    pax: parseInt(document.getElementById('f-pax').value)||1,
+    status: document.getElementById('f-status').value,
+    checkin: ci, checkout: co,
+    price: n>0?Math.round(total/n):priceWd,   // ราคาเฉลี่ย/คืน
+    totalAmount: total,                         // ยอดรวมจริง
+    note: document.getElementById('f-note').value,
+  };
+
+  if(firebaseConnected && db){
+    try {
+      if(id) await fbUpdate(fbRef(db,'bookings/'+id), data);
+      else await fbPush(fbRef(db,'bookings'), data);
+      showToast(id?'แก้ไขสำเร็จ':'เพิ่มการจองสำเร็จ','success');
+    } catch(e){ showToast('บันทึกไม่สำเร็จ: '+e.message,'error'); return; }
+  } else {
+    // localStorage demo mode
+    if(id){
+      const idx=BOOKINGS.findIndex(b=>b.id===id);
+      if(idx>=0) BOOKINGS[idx]={...data, id, checkin:parseDate(ci), checkout:parseDate(co)};
+    } else {
+      BOOKINGS.push({...data, id:'local_'+Date.now(), checkin:parseDate(ci), checkout:parseDate(co)});
+    }
+    showToast(id?'แก้ไขสำเร็จ (demo)':'เพิ่มสำเร็จ (demo)','success');
+    renderAll();
+  }
+  closeModal('modal-booking');
+}
+
+window.deleteBooking = async function(){
+  if(currentRole!=='admin'){ showToast('เฉพาะ admin เท่านั้น','error'); return; }
+  const id=document.getElementById('f-id').value; if(!id) return;
+  if(!confirm('ยืนยันลบการจองนี้?')) return;
+  if(firebaseConnected && db){
+    try { await fbRemove(fbRef(db,'bookings/'+id)); showToast('ลบสำเร็จ','success'); }
+    catch(e){ showToast('ลบไม่สำเร็จ','error'); return; }
+  } else {
+    BOOKINGS=BOOKINGS.filter(b=>b.id!==id);
+    showToast('ลบสำเร็จ (demo)','success');
+    renderAll();
+  }
+  closeModal('modal-booking');
+}
+
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+function renderSpecialPriceList(){
+  const el=document.getElementById('sp-list');
+  const list=CONFIG.specialPrices||[];
+  if(!list.length){ el.innerHTML='<p style="font-size:12px;color:var(--text3);margin-bottom:6px;">ยังไม่มีราคาพิเศษ</p>'; return; }
+  const sorted=[...list].sort((a,b)=>a.date.localeCompare(b.date));
+  el.innerHTML=sorted.map((sp,i)=>`
+    <div class="sp-item">
+      <span class="sp-date">${sp.date}</span>
+      <span class="sp-type">${sp.roomType}</span>
+      <span class="sp-price">฿${sp.price.toLocaleString()}/คืน</span>
+      <button class="btn btn-danger btn-sm" onclick="removeSpecialPrice('${sp.date}','${sp.roomType}')">✕</button>
+    </div>`).join('');
+}
+
+function populateSpTypeSelect(){
+  const types=[...new Set(CONFIG.rooms.map(r=>r.type))];
+  document.getElementById('sp-type').innerHTML=types.map(t=>`<option>${t}</option>`).join('');
+}
+
+window.addSpecialPrice = function(){
+  const date=document.getElementById('sp-date').value;
+  const roomType=document.getElementById('sp-type').value;
+  const price=parseFloat(document.getElementById('sp-price').value);
+  if(!date||!roomType||!price){ showToast('กรุณากรอกข้อมูลให้ครบ','error'); return; }
+  // ถ้ามีอยู่แล้ว ให้อัปเดต
+  CONFIG.specialPrices=CONFIG.specialPrices.filter(s=>!(s.date===date&&s.roomType===roomType));
+  CONFIG.specialPrices.push({date,roomType,price});
+  document.getElementById('sp-date').value='';
+  document.getElementById('sp-price').value='';
+  renderSpecialPriceList();
+}
+
+window.removeSpecialPrice = function(date, roomType){
+  CONFIG.specialPrices=CONFIG.specialPrices.filter(s=>!(s.date===date&&s.roomType===roomType));
+  renderSpecialPriceList();
+}
+
+function renderEmailRoleList(){
+  const el=document.getElementById('email-role-list');
+  const list=CONFIG.emailRoles||[];
+  if(!list.length){ el.innerHTML='<p style="font-size:12px;color:var(--text3);margin-bottom:6px;">ยังไม่มีผู้ใช้</p>'; return; }
+  const roleLabelClass={'admin':'role-admin','staff':'role-staff','viewer':'role-viewer'};
+  el.innerHTML=list.map((e,i)=>`
+    <div class="email-item">
+      <span class="em-email">${e.email}</span>
+      <span class="role-badge ${roleLabelClass[e.role]||''}">${e.role}</span>
+      <button class="btn btn-danger btn-sm" onclick="removeEmailRole(${i})">✕</button>
+    </div>`).join('');
+}
+
+window.addEmailRole = function(){
+  const email=document.getElementById('er-email').value.trim().toLowerCase();
+  const role=document.getElementById('er-role').value;
+  if(!email){ showToast('กรุณากรอก email','error'); return; }
+  if(!/^[^@]+@[^@]+$/.test(email)){ showToast('Email ไม่ถูกต้อง','error'); return; }
+  CONFIG.emailRoles=CONFIG.emailRoles.filter(e=>e.email!==email);
+  CONFIG.emailRoles.push({email,role});
+  document.getElementById('er-email').value='';
+  renderEmailRoleList();
+}
+
+window.removeEmailRole = function(i){
+  CONFIG.emailRoles.splice(i,1);
+  renderEmailRoleList();
+}
+
+window.openConfig = function(){
+  document.getElementById('cfg-hotelname').value=CONFIG.hotelName||'';
+  const saved=JSON.parse(localStorage.getItem('hotel_fb_cfg')||'{}');
+  document.getElementById('cfg-apikey').value=saved.apiKey||'';
+  document.getElementById('cfg-projectid').value=saved.projectId||'';
+  document.getElementById('cfg-dburl').value=saved.databaseURL||'';
+  renderRoomListCfg();
+  populateSpTypeSelect();
+  renderSpecialPriceList();
+  renderEmailRoleList();
+  document.getElementById('modal-config').classList.add('open');
+}
+
+function renderRoomListCfg(){
+  const el=document.getElementById('room-list-cfg');
+  el.innerHTML=CONFIG.rooms.map((r,i)=>`
+    <div class="room-item" style="flex-wrap:wrap;gap:6px;">
+      <input type="text" value="${r.name}" placeholder="เลขห้อง" onchange="CONFIG.rooms[${i}].name=this.value" style="width:60px;">
+      <select onchange="CONFIG.rooms[${i}].type=this.value">
+        ${['Standard','Deluxe','Suite','Family','Villa'].map(t=>`<option${r.type===t?' selected':''}>${t}</option>`).join('')}
+      </select>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span style="font-size:11px;color:var(--text3);">จ-พฤ</span>
+        <input type="number" value="${r.price}" placeholder="ธรรมดา" onchange="CONFIG.rooms[${i}].price=+this.value" style="width:80px;">
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span style="font-size:11px;color:var(--amber);">ศ-ส</span>
+        <input type="number" value="${r.priceWeekend||r.price}" placeholder="ศุกร์-เสาร์" onchange="CONFIG.rooms[${i}].priceWeekend=+this.value" style="width:80px;">
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="removeRoomCfg(${i})">✕</button>
+    </div>`).join('');
+}
+
+window.addRoomCfg = function(){
+  CONFIG.rooms.push({id:'R'+Date.now(),name:'',type:'Standard',price:800,priceWeekend:1000});
+  renderRoomListCfg();
+}
+window.removeRoomCfg = function(i){ CONFIG.rooms.splice(i,1); renderRoomListCfg(); }
+
+window.saveConfig = function(){
+  if(currentRole && currentRole!=='admin'){ showToast('เฉพาะ admin เท่านั้น','error'); return; }
+  CONFIG.hotelName=document.getElementById('cfg-hotelname').value||'โรงแรมของฉัน';
+  localStorage.setItem('hotel_config', JSON.stringify(CONFIG));
+  showToast('บันทึกการตั้งค่าสำเร็จ','success');
+  closeModal('modal-config');
+  renderAll();
+}
+
+window.connectFirebase = async function(){
+  const cfg={
+    apiKey: document.getElementById('cfg-apikey').value.trim(),
+    projectId: document.getElementById('cfg-projectid').value.trim(),
+    databaseURL: document.getElementById('cfg-dburl').value.trim(),
+    authDomain: document.getElementById('cfg-projectid').value.trim()+'.firebaseapp.com',
+  };
+  if(!cfg.apiKey||!cfg.projectId||!cfg.databaseURL){ showToast('กรุณากรอก Firebase config ให้ครบ','error'); return; }
+  localStorage.setItem('hotel_fb_cfg', JSON.stringify(cfg));
+  await initFirebase(cfg);
+}
+
+// ─── EXPORT EXCEL ─────────────────────────────────────────────────────────────
+window.exportExcel = function(){
+  const y=curYear, m=curMonth;
+  const thMon=['มค','กพ','มีค','เมย','พค','มิย','กค','สค','กย','ตค','พย','ธค'];
+  const start=new Date(y,m,1), end=new Date(y,m+1,0,23,59,59);
+  const rows=[['ชื่อผู้จอง','เบอร์โทร','ห้อง','ประเภท','เช็คอิน','เช็คเอาต์','คืน','ราคาธรรมดา','ราคาศ-ส','รวม','สถานะ','หมายเหตุ']];
+  let total=0;
+  BOOKINGS.filter(bk=>bk.checkin<=end&&bk.checkout>=start).sort((a,b)=>a.checkin-b.checkin).forEach(bk=>{
+    const room=CONFIG.rooms.find(r=>r.id===bk.room)||{};
+    const n=nights(bk.checkin,bk.checkout);
+    const amt=bk.totalAmount||n*bk.price;
+    total+=amt;
+    rows.push([bk.guest,bk.phone||'',room.name||bk.room,room.type||'',isoStr(bk.checkin),isoStr(bk.checkout),n,room.price||bk.price,room.priceWeekend||room.price||bk.price,amt,statusLabel(bk.status),bk.note||'']);
+  });
+  rows.push(['','','','','','','','','รวม',total,'','']);
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:20},{wch:14},{wch:8},{wch:10},{wch:12},{wch:12},{wch:6},{wch:12},{wch:12},{wch:10},{wch:14},{wch:20}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,thMon[m]+(y+543));
+  XLSX.writeFile(wb,`จองห้องพัก_${thMon[m]}${y+543}.xlsx`);
+  showToast('Export Excel สำเร็จ','success');
+}
+
+// ─── EXPORT PDF ───────────────────────────────────────────────────────────────
+window.exportPDF = function(){
+  const y=curYear, m=curMonth;
+  const thMon=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const start=new Date(y,m,1), end=new Date(y,m+1,0,23,59,59);
+  const bks=BOOKINGS.filter(bk=>bk.checkin<=end&&bk.checkout>=start).sort((a,b)=>a.checkin-b.checkin);
+  let total=0;
+  let rows=bks.map(bk=>{
+    const room=CONFIG.rooms.find(r=>r.id===bk.room)||{};
+    const n=nights(bk.checkin,bk.checkout);
+    const amt=bk.totalAmount||n*bk.price;
+    total+=amt;
+    return `<tr><td>${bk.guest}</td><td>${bk.phone||'-'}</td><td>${room.name||bk.room}</td><td>${isoStr(bk.checkin)}</td><td>${isoStr(bk.checkout)}</td><td>${n}</td><td>฿${(room.price||bk.price).toLocaleString()} / ฿${(room.priceWeekend||room.price||bk.price).toLocaleString()}</td><td>฿${amt.toLocaleString()}</td><td>${statusLabel(bk.status)}</td></tr>`;
+  }).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>รายงานการจอง</title>
+  <style>body{font-family:sans-serif;padding:24px;font-size:13px;}h2{margin-bottom:4px;}p{color:#666;margin-bottom:16px;}table{width:100%;border-collapse:collapse;}th{background:#f0f0f0;padding:8px 10px;text-align:left;border:1px solid #ddd;font-size:12px;}td{padding:7px 10px;border:1px solid #ddd;}tfoot td{font-weight:bold;background:#f8f8f8;}@media print{button{display:none;}}</style>
+  </head><body>
+  <h2>${CONFIG.hotelName} — รายงานการจอง</h2><p>${thMon[m]} ${y+543} · ${bks.length} รายการ</p>
+  <table><thead><tr><th>ชื่อ</th><th>โทร</th><th>ห้อง</th><th>เช็คอิน</th><th>เช็คเอาต์</th><th>คืน</th><th>ราคา/คืน</th><th>รวม</th><th>สถานะ</th></tr></thead>
+  <tbody>${rows}</tbody><tfoot><tr><td colspan="7" style="text-align:right;">รวมทั้งหมด</td><td>฿${total.toLocaleString()}</td><td></td></tr></tfoot></table>
+  <br><button onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button>
+  </body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  showToast('เปิดหน้า PDF แล้ว กด Print','success');
+}
+
+// ─── CLOSE ON OVERLAY CLICK ──────────────────────────────────────────────────
+document.querySelectorAll('.modal-overlay').forEach(el=>{
+  el.addEventListener('click',e=>{ if(e.target===el) el.classList.remove('open'); });
+});
+
+// ─── AUTO CONNECT IF SAVED ────────────────────────────────────────────────────
+const savedFb=JSON.parse(localStorage.getItem('hotel_fb_cfg')||'null');
+if(savedFb?.apiKey){
+  initFirebase(savedFb);
+} else {
+  // Demo mode: skip auth, show everything
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('main-wrap').style.display='';
+  applyRole('admin'); // full access in demo
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+renderAll();
+</script>
+</body>
+</html>
