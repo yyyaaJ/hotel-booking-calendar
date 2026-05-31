@@ -780,6 +780,20 @@
         <select id="f_price"></select>
       </div>
     </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>ที่นอนเสริม</label>
+        <select id="f_extrabed">
+          <option value="0">ไม่มี (0 บาท)</option>
+          <option value="150">ไม่เสริม (+150 บาท/คืน)</option>
+          <option value="300">เสริมที่นอน (+300 บาท/คืน)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>ราคารวม (บาท)</label>
+        <input type="text" id="f_total" readonly style="color:var(--gold);font-weight:700">
+      </div>
+    </div>
     <div class="form-row full">
       <div class="form-group">
         <label>หมายเหตุ</label>
@@ -872,10 +886,10 @@ const BOOKING_COLORS = [
   '#5d84fa','#3ef99e','#ffffff','#ff7b00','#fccd3d'
 ];
 const ROOM_PRICES = {
-  'Superior Room':      [600, 850],
+  'Standard Room':      [600, 850],
   'Twin Room':          [600, 850],
   'Pool View':          [1200, 1400],
-  'Standard Room':      [1400, 1600],
+  'Superior Room':      [1400, 1600],
   'Sweet Room':         [600, 850],
 };
 // ──────────────────────────────────────────────
@@ -1123,6 +1137,7 @@ window.openAddModal = function(roomNum, iso) {
   document.getElementById('f_guests').value = 1;
   document.getElementById('f_price').value = '';
   document.getElementById('f_note').value = '';
+  document.getElementById('f_extrabed').value = 0;
 
   selectedColor = roomNum && ROOM_MAP[roomNum] ? ROOM_MAP[roomNum].color : BOOKING_COLORS[0];
   renderColorSwatches();
@@ -1147,6 +1162,7 @@ window.openEditModal = function(e, id) {
   document.getElementById('f_guests').value = b.guests || 1;
   document.getElementById('f_price').value = b.price || '';
   document.getElementById('f_note').value = b.note || '';
+  document.getElementById('f_extrabed').value = b.extrabed || 0;
 
   selectedColor = b.color || BOOKING_COLORS[0];
   renderColorSwatches();
@@ -1184,6 +1200,31 @@ function updateRoomType() {
   priceSelect.innerHTML = prices.map(p =>
     `<option value="${p}">${p.toLocaleString()} บาท</option>`
   ).join('');
+
+  priceSelect.onchange = calcTotal;
+  document.getElementById('f_checkin').onchange = calcTotal;
+  document.getElementById('f_checkout').onchange = calcTotal;
+  document.getElementById('f_extrabed').onchange = calcTotal;
+  calcTotal(); // คำนวณทันทีเมื่อเปลี่ยนห้อง
+}
+
+function calcTotal() {
+  const price = parseFloat(document.getElementById('f_price').value) || 0;
+  const checkin = document.getElementById('f_checkin').value;
+  const checkout = document.getElementById('f_checkout').value;
+  const extrabed = parseFloat(document.getElementById('f_extrabed').value) || 0;
+
+  let nights = 1;
+  if (checkin && checkout) {
+    const diff = isoToDate(checkout) - isoToDate(checkin);
+    nights = Math.max(1, Math.round(diff / 86400000));
+  }
+
+  const extrabedCost = extrabed;
+  const total = (price * nights) + (extrabedCost * nights);
+
+  document.getElementById('f_total').value =
+    `${total.toLocaleString()} (${nights} คืน + ที่นอน ${extrabedCost*nights} บาท)`;
 }
 
 function renderColorSwatches() {
@@ -1215,6 +1256,9 @@ window.saveBooking = function() {
   const guests = parseInt(document.getElementById('f_guests').value) || 1;
   const price = parseFloat(document.getElementById('f_price').value) || 0;
   const note = document.getElementById('f_note').value.trim();
+  const extrabed = parseFloat(document.getElementById('f_extrabed').value) || 0;
+  const nights = Math.max(1, Math.round((isoToDate(checkout) - isoToDate(checkin)) / 86400000));
+  const totalPrice = (price * nights) + (extrabed * nights);
 
   if (!room || !checkin || !checkout || !name) {
     showToast('⚠️ กรุณากรอกข้อมูลที่จำเป็น (ห้อง, วันที่, ชื่อ)');
@@ -1236,7 +1280,8 @@ window.saveBooking = function() {
     return;
   }
 
-  const data = { room, checkin, checkout, name, phone, guests, price, note,
+  const data = { room, checkin, checkout, name, phone, guests, price,
+    extrabed, totalPrice, note,
     color: selectedColor, updatedAt: Date.now() };
 
   const syncDot = document.getElementById('syncDot');
