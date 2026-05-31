@@ -8,18 +8,17 @@
 
 <!-- Firebase SDK -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-  // ===== ใส่ Firebase Config ของคุณที่นี่ =====
-  const firebaseConfig = {
-    apiKey: "AIzaSyDdUXltt8kXUaKSz-d6vRW-TwhkWOt9VxA",
-    authDomain: "z2-chic-calendar.firebaseapp.com",
-    projectId: "z2-chic-calendar",
-    storageBucket: "z2-chic-calendar.firebasestorage.app",
-    messagingSenderId: "737912860679",
-    appId: "1:737912860679:web:9205f1aaff64d992e67aa2"
-  };
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+window._initFirebase = function(cfg) {
+  const app = initializeApp(cfg);
+  window._db = getFirestore(app);
+  window._firestoreFns = { collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, query, where };
+  window._firebaseReady = true;
+  document.dispatchEvent(new Event('firebaseReady'));
+};
   // =============================================
 
   const app = initializeApp(firebaseConfig);
@@ -676,6 +675,19 @@
 </head>
 <body>
 
+<div id="configScreen" style="position:fixed;inset:0;background:#1e3a8a;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:400px;">
+    <h2 style="font-family:'Kanit',sans-serif;color:#1e40af;margin-bottom:16px;text-align:center">⚙️ ตั้งค่า Firebase</h2>
+    <input id="cfg-apiKey" placeholder="apiKey" class="form-input" style="margin-bottom:8px"><br>
+    <input id="cfg-authDomain" placeholder="authDomain" class="form-input" style="margin-bottom:8px"><br>
+    <input id="cfg-projectId" placeholder="projectId" class="form-input" style="margin-bottom:8px"><br>
+    <input id="cfg-storageBucket" placeholder="storageBucket" class="form-input" style="margin-bottom:8px"><br>
+    <input id="cfg-messagingSenderId" placeholder="messagingSenderId" class="form-input" style="margin-bottom:8px"><br>
+    <input id="cfg-appId" placeholder="appId" class="form-input" style="margin-bottom:16px"><br>
+    <button onclick="submitConfig()" class="btn btn-primary" style="width:100%">💾 บันทึกและเชื่อมต่อ</button>
+  </div>
+</div>
+
 <div class="header">
   <h1>🏨 ปฏิทินการจองโรงแรม</h1>
   <div class="header-actions">
@@ -833,6 +845,48 @@ let modalExistingData = null;
 
 // ======== FIREBASE ========
 var db, firestoreFns;
+
+function loadConfig() {
+  try { return JSON.parse(localStorage.getItem('fbConfig')); } 
+  catch { return null; }
+}
+
+function saveConfig(cfg) {
+  localStorage.setItem('fbConfig', JSON.stringify(cfg));
+}
+
+function initFirebase(cfg) {
+  window._initFirebase(cfg);
+}
+
+function submitConfig() {
+  const cfg = {
+    apiKey: document.getElementById('cfg-apiKey').value.trim(),
+    authDomain: document.getElementById('cfg-authDomain').value.trim(),
+    projectId: document.getElementById('cfg-projectId').value.trim(),
+    storageBucket: document.getElementById('cfg-storageBucket').value.trim(),
+    messagingSenderId: document.getElementById('cfg-messagingSenderId').value.trim(),
+    appId: document.getElementById('cfg-appId').value.trim(),
+  };
+  if (!cfg.apiKey || !cfg.projectId) { showToast('❌ กรุณากรอก apiKey และ projectId'); return; }
+  saveConfig(cfg);
+  document.getElementById('configScreen').style.display = 'none';
+  initFirebase(cfg);
+  waitFirebase(() => { subscribeBookings(); renderYear(); showView('year'); });
+}
+
+(function init() {
+  const now = new Date();
+  currentYear = now.getFullYear();
+  currentMonth = now.getMonth();
+  const cfg = loadConfig();
+  if (cfg && cfg.apiKey && cfg.projectId) {
+    document.getElementById('configScreen').style.display = 'none';
+    initFirebase(cfg);
+    waitFirebase(() => { subscribeBookings(); renderYear(); showView('year'); });
+  }
+  // else config screen stays visible
+})();
 
 function waitFirebase(cb) {
   if (window._firebaseReady) { db = window._db; firestoreFns = window._firestoreFns; cb(); }
