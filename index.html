@@ -830,7 +830,8 @@ import {
 // ──────────────────────────────────────────────
 const FLOORS = [
   { floor: 1, label: 'ชั้น 1', rooms: [
-    {num:'101'},{num:'102'}
+    {num:'101', type:'Pool View', color:'#ffffff'},
+    {num:'102', type:'Deluxe Pool View', color:'#ffffff'},
   ], type: 'Pool View', color: '#ffffff' },
   { floor: 2, label: 'ชั้น 2', rooms: [
     {num:'201', type:'Family Suite', color:'#ffffff'},
@@ -888,7 +889,8 @@ const BOOKING_COLORS = [
 const ROOM_PRICES = {
   'Superior Room':      [600, 850],
   'Superior Room Twin': [600, 850],
-  'Pool View':          [1200, 1400],
+  'Pool View':          [1100, 1300],
+  'Deluxe Pool View':          [1200, 1400],
   'Family Suite':       [1400, 1600],
   'Sweet Room':         [600, 850],
 };
@@ -1160,13 +1162,13 @@ window.openEditModal = function(e, id) {
   document.getElementById('f_name').value = b.name || '';
   document.getElementById('f_phone').value = b.phone || '';
   document.getElementById('f_guests').value = b.guests || 1;
-  document.getElementById('f_price').value = b.price || '';
   document.getElementById('f_note').value = b.note || '';
   document.getElementById('f_extrabed').value = b.extrabed || 0;
 
   selectedColor = b.color || BOOKING_COLORS[0];
   renderColorSwatches();
   updateRoomType();
+  document.getElementById('f_price').value = b.price || '';
 
   document.getElementById('modalOverlay').classList.add('show');
 };
