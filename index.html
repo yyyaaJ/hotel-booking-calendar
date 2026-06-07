@@ -803,7 +803,7 @@
         <input type="number" id="f_guests" min="1" value="1">
       </div>
       <div class="form-group">
-        <label>ราคา (บาท)</label>
+        <label>ราคา (คิดตามวัน)</label>
         <select id="f_price"></select>
       </div>
     </div>
@@ -819,6 +819,12 @@
       <div class="form-group">
         <label>ราคารวม (บาท)</label>
         <input type="text" id="f_total" readonly style="color:var(--gold);font-weight:700">
+      </div>
+    </div>
+    <div class="form-row full" id="flatRow" style="display:none">
+      <div class="form-group">
+        <label>ราคาเหมาจ่าย (บาท) — ราคาห้องที่ตกลงกับลูกค้า (ไม่รวมที่นอนเสริม/ประกัน)</label>
+        <input type="number" id="f_flat" min="0" placeholder="กรอกราคาห้องที่ตกลง">
       </div>
     </div>
     <div class="form-row full">
@@ -980,6 +986,7 @@ FLOORS.forEach(f => {
 const BOOKING_COLORS = [
   '#5d84fa','#3ef99e','#ffffff','#ff7b00','#fccd3d'
 ];
+// ราคาห้อง = [ราคาวันธรรมดา (อา-พฤ), ราคาวันหยุด (ศ-ส และวันหยุดนักขัตฤกษ์)]
 const ROOM_PRICES = {
   'Superior Room':      [600, 850],
   'Superior Room Twin': [600, 850],
@@ -1243,7 +1250,7 @@ function renderCalendar() {
     const barW = spanDays * cellW - 4;
           const color = /^#[0-9a-fA-F]{3,8}$/.test(b.color || '') ? b.color : room.color;
           const name = escapeHtml((b.name || '').substring(0, 14));
-          const priceLabel = isAgodaBooking(b) ? 'Agoda' : (b.price ? b.price+' บาท' : '-');
+          const priceLabel = isAgodaBooking(b) ? 'Agoda' : (b.totalPrice ? Number(b.totalPrice).toLocaleString()+' บาท' : '-');
           const titleText = escapeHtml(`${b.name||''} | ${b.checkin}→${b.checkout} | ${b.phone||''} | ราคา: ${priceLabel}`);
           cellContent += `<div class="booking-bar" data-id="${escapeHtml(b.id)}"
             style="left:2px;width:${barW}px;background:${color};top:${4 + barIndex * 20}px"
@@ -1330,6 +1337,9 @@ window.openAddModal = function(roomNum, iso) {
   selectedColor = roomNum && ROOM_MAP[roomNum] ? ROOM_MAP[roomNum].color : BOOKING_COLORS[0];
   renderColorSwatches();
   updateRoomType();
+  document.getElementById('f_price').value = 'auto';   // จองใหม่เริ่มที่โหมดอัตโนมัติเสมอ
+  document.getElementById('f_flat').value = '';
+  calcTotal();
 
   document.getElementById('modalOverlay').classList.add('show');
 };
@@ -1355,19 +1365,10 @@ window.openEditModal = function(e, id) {
   selectedColor = b.color || BOOKING_COLORS[0];
   renderColorSwatches();
   updateRoomType();
-  // ราคา: ถ้าเป็น Agoda เลือก option Agoda; ไม่งั้นเลือกตามราคาเดิม (เพิ่ม option ถ้าไม่อยู่ในลิสต์)
-  const priceSel = document.getElementById('f_price');
-  if (isAgodaBooking(b)) {
-    priceSel.value = 'agoda';
-  } else {
-    if (b.price && ![...priceSel.options].some(o => Number(o.value) === Number(b.price))) {
-      const opt = document.createElement('option');
-      opt.value = b.price;
-      opt.textContent = Number(b.price).toLocaleString() + ' บาท';
-      priceSel.appendChild(opt);
-    }
-    priceSel.value = b.price || '';
-  }
+  // โหมดราคา: auto / flat (เหมาจ่าย) / agoda — รองรับข้อมูลเก่าที่ไม่มี priceMode
+  const priceMode = b.priceMode || (isAgodaBooking(b) ? 'agoda' : 'auto');
+  document.getElementById('f_price').value = priceMode;
+  document.getElementById('f_flat').value = priceMode === 'flat' ? (b.roomTotal || '') : '';
   calcTotal();
 
   document.getElementById('modalOverlay').classList.add('show');
@@ -1396,43 +1397,87 @@ function updateRoomType() {
   const type = rm ? rm.type : '';
   document.getElementById('f_type').value = type;
 
-  // อัพเดตตัวเลือกราคา + เพิ่มตัวเลือก Agoda (ราคาจัดการโดย Agoda — ไม่โชว์ราคาบนเว็บ)
-  const prices = ROOM_PRICES[type] || [];
+  // โหมดราคา: อัตโนมัติ (คิดตามวัน) / เหมาจ่าย (กรอกเอง) / Agoda (ไม่โชว์ราคาบนเว็บ)
   const priceSelect = document.getElementById('f_price');
-  priceSelect.innerHTML = prices.map(p =>
-    `<option value="${p}">${p.toLocaleString()} บาท</option>`
-  ).join('') + '<option value="agoda">Agoda (ราคาจาก Agoda)</option>';
+  const prevMode = ['agoda','flat'].includes(priceSelect.value) ? priceSelect.value : 'auto';
+  priceSelect.innerHTML =
+    '<option value="auto">อัตโนมัติ (ธรรมดา/วันหยุด)</option>' +
+    '<option value="flat">เหมาจ่าย (กรอกราคาเอง)</option>' +
+    '<option value="agoda">Agoda (ราคาจาก Agoda)</option>';
+  priceSelect.value = prevMode;
 
   priceSelect.onchange = calcTotal;
   document.getElementById('f_checkin').onchange = calcTotal;
   document.getElementById('f_checkout').onchange = calcTotal;
   document.getElementById('f_extrabed').onchange = calcTotal;
+  document.getElementById('f_flat').oninput = calcTotal;
   calcTotal(); // คำนวณทันทีเมื่อเปลี่ยนห้อง
 }
 
+// คำนวณค่าห้องตลอดการเข้าพัก คิดราคาต่อคืนตามวัน (ศ-ส + วันหยุด = แพง, อา-พฤ = ถูก)
+function calcStay(type, checkinISO, checkoutISO) {
+  const prices = ROOM_PRICES[type] || [0, 0];
+  const p1 = prices[0], p2 = (prices[1] != null ? prices[1] : prices[0]);
+  const weekdayRate = Math.min(p1, p2);
+  const peakRate    = Math.max(p1, p2);
+  let roomTotal = 0, nights = 0, peakNights = 0;
+  let cur = isoToDate(checkinISO);
+  const end = isoToDate(checkoutISO);
+  while (cur < end) {
+    const iso = toISO(cur.getFullYear(), cur.getMonth(), cur.getDate());
+    const dow = cur.getDay();                                 // 0=อา ... 5=ศ, 6=ส
+    const peak = dow === 5 || dow === 6 || !!holidays[iso];   // ศุกร์/เสาร์ หรือวันหยุด = แพง
+    roomTotal += peak ? peakRate : weekdayRate;
+    if (peak) peakNights++;
+    nights++;
+    cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
+  }
+  return { roomTotal, nights, peakNights, weekdayNights: nights - peakNights, weekdayRate, peakRate };
+}
+
 function calcTotal() {
-  const priceRaw = document.getElementById('f_price').value;
+  const mode = document.getElementById('f_price').value;   // 'auto' | 'flat' | 'agoda'
+  // โชว์ช่องกรอกราคาเฉพาะโหมดเหมาจ่าย
+  document.getElementById('flatRow').style.display = (mode === 'flat') ? '' : 'none';
+
   // Agoda: ไม่โชว์ราคาบนเว็บ
-  if (priceRaw === 'agoda') {
+  if (mode === 'agoda') {
     document.getElementById('f_total').value = 'Agoda (ราคาจาก Agoda)';
     return;
   }
-  const price = parseFloat(priceRaw) || 0;
+  const type = document.getElementById('f_type').value;
   const checkin = document.getElementById('f_checkin').value;
   const checkout = document.getElementById('f_checkout').value;
   const extrabed = parseFloat(document.getElementById('f_extrabed').value) || 0;
 
-  let nights = 1;
-  if (checkin && checkout) {
-    const diff = isoToDate(checkout) - isoToDate(checkin);
-    nights = Math.max(1, Math.round(diff / 86400000));
+  if (!checkin || !checkout || isoToDate(checkout) <= isoToDate(checkin)) {
+    document.getElementById('f_total').value = '';
+    return;
   }
 
-  const extrabedCost = extrabed;
-  const total = (price * nights) + (extrabedCost * nights);
+  const nights = Math.max(1, Math.round((isoToDate(checkout) - isoToDate(checkin)) / 86400000));
+  const extrabedTotal = extrabed * nights;
 
-  document.getElementById('f_total').value =
-    `${total.toLocaleString()} (${nights} คืน + ที่นอน ${extrabedCost*nights} บาท)`;
+  // เหมาจ่าย: ใช้ราคาที่กรอกเองเป็นค่าห้อง (ที่นอนเสริมบวกเพิ่ม)
+  if (mode === 'flat') {
+    const flat = parseFloat(document.getElementById('f_flat').value) || 0;
+    const total = flat + extrabedTotal;
+    let txt = `${total.toLocaleString()} = เหมาจ่าย ${flat.toLocaleString()}`;
+    if (extrabedTotal) txt += ` + ที่นอน ${extrabedTotal.toLocaleString()}`;
+    document.getElementById('f_total').value = txt;
+    return;
+  }
+
+  // อัตโนมัติ: คิดค่าห้องรายคืนตามวัน
+  const s = calcStay(type, checkin, checkout);
+  const total = s.roomTotal + extrabedTotal;
+  const parts = [];
+  if (s.weekdayNights) parts.push(`${s.weekdayNights} คืนธรรมดา×${s.weekdayRate.toLocaleString()}`);
+  if (s.peakNights)    parts.push(`${s.peakNights} คืนหยุด×${s.peakRate.toLocaleString()}`);
+  let txt = `${total.toLocaleString()} = ค่าห้อง ${s.roomTotal.toLocaleString()}`;
+  if (parts.length)    txt += ` (${parts.join(' + ')})`;
+  if (extrabedTotal)   txt += ` + ที่นอน ${extrabedTotal.toLocaleString()}`;
+  document.getElementById('f_total').value = txt;
 }
 
 function renderColorSwatches() {
@@ -1462,15 +1507,26 @@ window.saveBooking = function() {
   const name = document.getElementById('f_name').value.trim();
   const phone = document.getElementById('f_phone').value.trim();
   const guests = parseInt(document.getElementById('f_guests').value) || 1;
-  const priceRaw = document.getElementById('f_price').value;
-  const isAgoda = priceRaw === 'agoda';
-  const price = isAgoda ? 0 : (parseFloat(priceRaw) || 0);
+  const mode = document.getElementById('f_price').value;             // 'auto' | 'agoda'
+  const isAgoda = mode === 'agoda';
   const note = document.getElementById('f_note').value.trim();
   const extrabed = parseFloat(document.getElementById('f_extrabed').value) || 0;
-  const depositMethod = document.getElementById('f_deposit').value;   // '', 'cash', 'transfer'
-  const deposit = depositMethod ? 200 : 0;                            // เงินประกัน (แยกจากราคารวม)
+  const depositMethod = document.getElementById('f_deposit').value;  // '', 'cash', 'transfer'
+  const deposit = depositMethod ? 200 : 0;                           // เงินประกัน (แยกจากราคารวม)
+  const type = (ROOM_MAP[room] || {}).type || '';
   const nights = Math.max(1, Math.round((isoToDate(checkout) - isoToDate(checkin)) / 86400000));
-  const totalPrice = isAgoda ? 0 : (price * nights) + (extrabed * nights);
+  const flatInput = parseFloat(document.getElementById('f_flat').value) || 0;
+
+  // คิดค่าห้อง: auto = รายคืนตามวัน, flat = เหมาจ่ายกรอกเอง, agoda = ไม่คิด
+  let roomTotal = 0, peakNights = 0, weekdayNights = 0, price = 0, totalPrice = 0;
+  if (!isAgoda) {
+    const s = calcStay(type, checkin, checkout);
+    peakNights = s.peakNights;
+    weekdayNights = s.weekdayNights;
+    roomTotal = (mode === 'flat') ? flatInput : s.roomTotal;
+    price = nights ? Math.round(roomTotal / nights) : 0;             // ราคาเฉลี่ย/คืน (ไว้แสดงผล)
+    totalPrice = roomTotal + (extrabed * nights);
+  }
 
   if (!room || !checkin || !checkout || !name) {
     showToast('⚠️ กรุณากรอกข้อมูลที่จำเป็น (ห้อง, วันที่, ชื่อ)');
@@ -1478,6 +1534,10 @@ window.saveBooking = function() {
   }
   if (checkin >= checkout) {
     showToast('⚠️ วัน Check-out ต้องหลัง Check-in');
+    return;
+  }
+  if (mode === 'flat' && flatInput <= 0) {
+    showToast('⚠️ กรุณากรอกราคาเหมาจ่าย');
     return;
   }
 
@@ -1492,7 +1552,8 @@ window.saveBooking = function() {
     return;
   }
 
-  const data = { room, checkin, checkout, name, phone, guests, price,
+  const data = { room, checkin, checkout, name, phone, guests,
+    price, roomTotal, peakNights, weekdayNights, nights, priceMode: mode,
     extrabed, totalPrice, deposit, depositMethod, isAgoda, note,
     color: isAgoda ? AGODA_COLOR : selectedColor, updatedAt: Date.now() };
 
@@ -1542,7 +1603,7 @@ window.onSearch = function(q) {
     : results.map(([id,b]) => `
       <div class="search-item" onclick="searchJump('${escapeHtml(id)}')">
         <div class="si-name">${escapeHtml(b.name||'')} — ห้อง ${escapeHtml(b.room||'')}</div>
-        <div class="si-detail">${escapeHtml(b.checkin||'')} → ${escapeHtml(b.checkout||'')} ${b.phone?'| 📞'+escapeHtml(b.phone):''} ${isAgodaBooking(b)?'| Agoda':(b.price?'| ฿'+Number(b.price).toLocaleString():'')}${b.note?'<br>📝 '+escapeHtml(b.note.substring(0,60)):''}</div>
+        <div class="si-detail">${escapeHtml(b.checkin||'')} → ${escapeHtml(b.checkout||'')} ${b.phone?'| 📞'+escapeHtml(b.phone):''} ${isAgodaBooking(b)?'| Agoda':(b.totalPrice?'| ฿'+Number(b.totalPrice).toLocaleString():'')}${b.note?'<br>📝 '+escapeHtml(b.note.substring(0,60)):''}</div>
       </div>`).join('');
 
   panel.classList.add('show');
@@ -1618,28 +1679,37 @@ window.exportExcel = function() {
 
   const toRow = (b) => {
     const ciDate = isoToDate(b.checkin);
-    const nights = Math.max(1, Math.round((isoToDate(b.checkout) - isoToDate(b.checkin)) / 86400000));
+    const dateTH = `${ciDate.getDate()}/${ciDate.getMonth()+1}/${String(ciDate.getFullYear()+543).slice(-2)}`;
     const rm     = ROOM_MAP[b.room] || {};
     const ag     = isAgodaBooking(b);
-    const price  = Number(b.price) || 0;
+    const s      = calcStay(rm.type, b.checkin, b.checkout);
+    const nights = Number(b.nights) || s.nights;
+    const wkdy   = (b.weekdayNights != null) ? b.weekdayNights : s.weekdayNights;
+    const wknd   = (b.peakNights != null) ? b.peakNights : s.peakNights;
+    const extrabedTotal = (Number(b.extrabed) || 0) * nights;
+    const roomTotal = Number(b.roomTotal) || s.roomTotal;
+    const total  = Number(b.totalPrice) || (roomTotal + extrabedTotal);
     const depoM  = b.depositMethod === 'cash' ? 'เงินสด'
                  : b.depositMethod === 'transfer' ? 'โอน' : '';
     return {
-      'วัน'         : `${ciDate.getDate()}/${ciDate.getMonth()+1}/${String(ciDate.getFullYear()+543).slice(-2)}`,
-      'เลขห้อง'     : b.room,
-      'ประเภทห้อง'  : rm.type || '',
-      'ชื่อผู้พัก'  : b.name  || '',
-      'Check-in'    : b.checkin,
-      'Check-out'   : b.checkout,
-      'จำนวนคืน'    : nights,
-      'ราคา/คืน'    : ag ? 'Agoda' : price,
-      'ราคารวม'     : ag ? 'Agoda' : (Number(b.totalPrice) || price * nights),
-      'ประกัน'      : b.deposit ? Number(b.deposit) : '',
+      'วัน'          : dateTH,
+      'เลขห้อง'      : b.room,
+      'ประเภทห้อง'   : rm.type || '',
+      'ชื่อผู้พัก'   : b.name  || '',
+      'Check-in'     : b.checkin,
+      'Check-out'    : b.checkout,
+      'จำนวนคืน'     : nights,
+      'คืนธรรมดา'    : ag ? '' : wkdy,
+      'คืนวันหยุด'   : ag ? '' : wknd,
+      'ค่าห้อง'      : ag ? 'Agoda' : roomTotal,
+      'ที่นอนเสริม'  : ag ? '' : extrabedTotal,
+      'ราคารวม'      : ag ? 'Agoda' : total,
+      'ประกัน'       : b.deposit ? Number(b.deposit) : '',
       'วิธีชำระประกัน': depoM,
     };
   };
 
-  const header = ['วัน','เลขห้อง','ประเภทห้อง','ชื่อผู้พัก','Check-in','Check-out','จำนวนคืน','ราคา/คืน','ราคารวม','ประกัน','วิธีชำระประกัน'];
+  const header = ['วัน','เลขห้อง','ประเภทห้อง','ชื่อผู้พัก','Check-in','Check-out','จำนวนคืน','คืนธรรมดา','คืนวันหยุด','ค่าห้อง','ที่นอนเสริม','ราคารวม','ประกัน','วิธีชำระประกัน'];
   const rows = normal.map(toRow);
   if (agoda.length) {
     rows.push({});                                   // แถวว่างคั่น
@@ -1649,7 +1719,7 @@ window.exportExcel = function() {
 
   const ws = XLSX.utils.json_to_sheet(rows, { header });
   ws['!cols'] = [
-    {wch:9},{wch:8},{wch:18},{wch:22},{wch:12},{wch:12},{wch:8},{wch:10},{wch:12},{wch:8},{wch:14}
+    {wch:9},{wch:8},{wch:18},{wch:22},{wch:12},{wch:12},{wch:8},{wch:9},{wch:9},{wch:10},{wch:11},{wch:12},{wch:8},{wch:14}
   ];
 
   const wb = XLSX.utils.book_new();
