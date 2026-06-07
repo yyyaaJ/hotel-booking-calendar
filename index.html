@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hotel Booking Calendar</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -16,9 +16,9 @@
     --accent: #4f7cff;
     --accent2: #7c5cfc;
     --gold: #f5c842;
-    --green: #ffffff;
+    --green: #3ef99e;
     --red: #ff5c5c;
-    --orange: #ffffff;
+    --orange: #ff7b00;
     --text: #e8eaf6;
     --text2: #8892b0;
     --text3: #4a527a;
@@ -295,6 +295,8 @@
   }
   .date-header-cell.today-col .dh-num { color: var(--accent); }
   .date-header-cell.weekend .dh-num { color: var(--gold); }
+  .date-header-cell.holiday .dh-num { color: var(--red); }
+  .date-header-cell.holiday .dh-day { color: var(--red); }
 
   /* Room row label */
   .room-label {
@@ -360,6 +362,29 @@
   .day-cell:hover { background: rgba(79,124,255,.08); }
   .day-cell.today-col { background: rgba(79,124,255,.10); }
   .day-cell.weekend   { background: rgba(245,200,66,.08); }
+  .day-cell.holiday   { background: rgba(255,92,92,.10); }
+
+  /* Holiday manager list */
+  .holiday-item {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+  .holiday-item .hi-date { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: var(--accent); }
+  .holiday-item button {
+    background: rgba(255,92,92,.15);
+    border: 1px solid rgba(255,92,92,.3);
+    color: var(--red);
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 4px 9px;
+    font-size: 13px;
+  }
 
   /* Booking bar */
   .booking-bar {
@@ -674,7 +699,7 @@
     <button class="config-save" onclick="saveConfig()">บันทึกและเชื่อมต่อ</button>
     <p class="config-note">
       ⚠️ ต้องเปิดใช้ <strong>Realtime Database</strong> ใน Firebase Console<br>
-      และตั้ง Rules เป็น <code style="color:var(--gold)">".read": true, ".write": true</code> (หรือ Authentication ตามต้องการ)<br>
+      🔒 <strong style="color:var(--red)">อย่าตั้ง Rules แบบเปิด public</strong> (<code>".read": true, ".write": true</code>) บนข้อมูลจริง เพราะข้อมูลลูกค้า (ชื่อ/เบอร์โทร) จะถูกอ่านหรือลบได้โดยทุกคน — แนะนำให้เปิด Authentication แล้วจำกัดสิทธิ์<br>
       🔒 Config จะเก็บใน localStorage ของเบราว์เซอร์นี้เท่านั้น
     </p>
   </div>
@@ -700,6 +725,8 @@
     <input type="text" id="searchInput" placeholder="ค้นหาชื่อ / เบอร์ / เลขห้อง / หมายเหตุ" oninput="onSearch(this.value)">
   </div>
   <button class="add-btn" onclick="openAddModal()">+ จอง</button>
+  <button class="nav-btn" onclick="openExportModal()" title="Export Excel (รวม Agoda แยกด้านล่าง)" style="font-size:13px;font-weight:600;color:var(--green)">📊 Excel</button>
+  <button class="nav-btn" onclick="openHolidayModal()" title="จัดการวันหยุดนักขัตฤกษ์" style="font-size:13px;font-weight:600;color:var(--red)">📅 วันหยุด</button>
   <button class="nav-btn" onclick="openConfig()" title="ตั้งค่า Firebase" style="font-size:16px">⚙️</button>
 </div>
 
@@ -784,14 +811,24 @@
       <div class="form-group">
         <label>ที่นอนเสริม</label>
         <select id="f_extrabed">
-          <option value="0">ไม่มี (0 บาท)</option>
-          <option value="150">ไม่เสริม (+150 บาท/คืน)</option>
+          <option value="0">ไม่เสริม (0 บาท)</option>
+          <option value="150">เสริมชุดเครื่องนอน (+150 บาท/คืน)</option>
           <option value="300">เสริมที่นอน (+300 บาท/คืน)</option>
         </select>
       </div>
       <div class="form-group">
         <label>ราคารวม (บาท)</label>
         <input type="text" id="f_total" readonly style="color:var(--gold);font-weight:700">
+      </div>
+    </div>
+    <div class="form-row full">
+      <div class="form-group">
+        <label>เงินประกัน 200 บาท (คืนได้ — ไม่รวมในราคารวม)</label>
+        <select id="f_deposit">
+          <option value="">ไม่เก็บ</option>
+          <option value="cash">เงินสด (200 บาท)</option>
+          <option value="transfer">โอน (200 บาท)</option>
+        </select>
       </div>
     </div>
     <div class="form-row full">
@@ -815,8 +852,65 @@
   </div>
 </div>
 
+<!-- Export Modal -->
+<div class="modal-overlay" id="exportOverlay">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title">
+      <span>📊 Export Excel</span>
+      <button class="modal-close" onclick="closeExportModal()">✕</button>
+    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6">
+      เลือกช่วงวันที่ (กรองจากวัน Check-in) — รวมการจอง Agoda โดยแยกไว้ด้านล่าง
+    </p>
+    <div class="form-row">
+      <div class="form-group">
+        <label>ตั้งแต่วันที่ *</label>
+        <input type="date" id="exp_from">
+      </div>
+      <div class="form-group">
+        <label>ถึงวันที่ *</label>
+        <input type="date" id="exp_to">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-save" onclick="exportExcel()">📊 ดาวน์โหลด</button>
+      <button class="btn-cancel" onclick="closeExportModal()">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Holiday Manager Modal -->
+<div class="modal-overlay" id="holidayOverlay">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title">
+      <span>📅 วันหยุดนักขัตฤกษ์</span>
+      <button class="modal-close" onclick="closeHolidayModal()">✕</button>
+    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6">
+      เพิ่ม/ลบวันหยุด — วันที่กำหนดจะถูกไฮไลต์สีแดงในปฏิทิน (บันทึกใน Firebase ใช้ร่วมกันทุกเครื่อง)
+    </p>
+    <div class="form-row">
+      <div class="form-group">
+        <label>วันที่ *</label>
+        <input type="date" id="hol_date">
+      </div>
+      <div class="form-group">
+        <label>ชื่อวันหยุด *</label>
+        <input type="text" id="hol_name" placeholder="เช่น สงกรานต์">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-save" onclick="saveHoliday()">+ เพิ่มวันหยุด</button>
+    </div>
+    <div id="holidayList" style="margin-top:14px"></div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
+
+<!-- SheetJS for Excel export -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
 <!-- Firebase SDK -->
 <script type="module">
@@ -894,15 +988,28 @@ const ROOM_PRICES = {
   'Family Suite':       [1400, 1600],
   'Sweet Room':         [600, 850],
 };
+// สีเลขห้องตามประเภท (ปรับให้สว่างพออ่านบนธีมมืด)
+const TYPE_COLORS = {
+  'Superior Room':      '#c2825b', // น้ำตาล
+  'Superior Room Twin': '#9aa0ad', // เทา
+  'Family Suite':       '#5a7bef', // น้ำเงิน
+  'Pool View':          '#38bdf8', // ฟ้า
+  'Deluxe Pool View':   '#22d3ee', // ฟ้าเขียว
+  'Sweet Room':         '#ff5c5c', // แดง
+};
+// สีแถบ Agoda — ใช้ระบุการจอง Agoda (พร้อม flag isAgoda สำหรับข้อมูลใหม่)
+const AGODA_COLOR = '#ff7b00';
 // ──────────────────────────────────────────────
 // STATE
 // ──────────────────────────────────────────────
 let db = null;
 let bookings = {}; // id -> booking obj
+let holidays = {}; // 'YYYY-MM-DD' -> ชื่อวันหยุด
 let currentYear, currentMonth;
 let editingId = null;
 let selectedColor = BOOKING_COLORS[0];
 let unsubscribe = null;
+let unsubHolidays = null;
 
 // ──────────────────────────────────────────────
 // CONFIG
@@ -945,6 +1052,7 @@ function initFirebase(cfg) {
     const app = initializeApp(cfg, 'hotel-' + Date.now());
     db = getDatabase(app);
     subscribeBookings();
+    subscribeHolidays();
   } catch(e) {
     document.getElementById('loadingOverlay').style.display = 'none';
     showToast('❌ Firebase error: ' + e.message);
@@ -957,7 +1065,10 @@ function subscribeBookings() {
   const syncDot = document.getElementById('syncDot');
   syncDot.className = 'sync-dot syncing';
 
-  onValue(bookingsRef, (snapshot) => {
+  // ถอน listener เก่าก่อน เพื่อกัน listener ซ้ำ/memory leak เมื่อตั้งค่าใหม่
+  if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+
+  unsubscribe = onValue(bookingsRef, (snapshot) => {
     bookings = snapshot.val() || {};
     document.getElementById('loadingOverlay').style.display = 'none';
     syncDot.className = 'sync-dot online';
@@ -968,6 +1079,65 @@ function subscribeBookings() {
     showToast('❌ DB Error: ' + err.message);
   });
 }
+
+// ──────────────────────────────────────────────
+// HOLIDAYS (วันหยุดนักขัตฤกษ์)
+// ──────────────────────────────────────────────
+function subscribeHolidays() {
+  // ถอน listener เก่าก่อน เพื่อกัน listener ซ้ำเมื่อตั้งค่าใหม่
+  if (unsubHolidays) { unsubHolidays(); unsubHolidays = null; }
+  unsubHolidays = onValue(ref(db, 'holidays'), (snap) => {
+    holidays = snap.val() || {};
+    renderCalendar();
+    if (document.getElementById('holidayOverlay').classList.contains('show')) renderHolidayList();
+  });
+}
+
+window.openHolidayModal = function() {
+  if (!db) { showToast('❌ ยังไม่ได้เชื่อมต่อ Firebase'); return; }
+  document.getElementById('hol_date').value = '';
+  document.getElementById('hol_name').value = '';
+  renderHolidayList();
+  document.getElementById('holidayOverlay').classList.add('show');
+};
+
+window.closeHolidayModal = function() {
+  document.getElementById('holidayOverlay').classList.remove('show');
+};
+
+function renderHolidayList() {
+  const list = document.getElementById('holidayList');
+  const entries = Object.entries(holidays).sort((a, b) => a[0].localeCompare(b[0]));
+  list.innerHTML = entries.length === 0
+    ? '<p style="color:var(--text3);font-size:13px">ยังไม่มีวันหยุด</p>'
+    : entries.map(([date, name]) => `
+      <div class="holiday-item">
+        <span><span class="hi-date">${escapeHtml(date)}</span> — ${escapeHtml(name)}</span>
+        <button onclick="deleteHoliday('${escapeHtml(date)}')" title="ลบ">🗑</button>
+      </div>`).join('');
+}
+
+window.saveHoliday = function() {
+  if (!db) { showToast('❌ ยังไม่ได้เชื่อมต่อ Firebase'); return; }
+  const date = document.getElementById('hol_date').value;
+  const name = document.getElementById('hol_name').value.trim();
+  if (!date || !name) { showToast('⚠️ กรุณากรอกวันที่และชื่อวันหยุด'); return; }
+  set(ref(db, 'holidays/' + date), name)
+    .then(() => {
+      showToast('✅ เพิ่มวันหยุดแล้ว');
+      document.getElementById('hol_date').value = '';
+      document.getElementById('hol_name').value = '';
+    })
+    .catch(e => showToast('❌ ' + e.message));
+};
+
+window.deleteHoliday = function(date) {
+  if (!db) return;
+  if (!confirm('ลบวันหยุด ' + date + ' ?')) return;
+  remove(ref(db, 'holidays/' + date))
+    .then(() => showToast('🗑 ลบวันหยุดแล้ว'))
+    .catch(e => showToast('❌ ' + e.message));
+};
 
 // ──────────────────────────────────────────────
 // DATE HELPERS
@@ -981,12 +1151,22 @@ function toISO(y, m, d) {
   return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 }
 function isoToDate(s) { const [y,m,d]=s.split('-'); return new Date(+y,+m-1,+d); }
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+// เป็นการจอง Agoda ไหม (flag ใหม่ หรือสีส้มแบบเดิม/ย้อนหลัง)
+function isAgodaBooking(b) {
+  return !!b && (b.isAgoda === true || String(b.color || '').toLowerCase() === AGODA_COLOR);
+}
 
 // ──────────────────────────────────────────────
 // CALENDAR RENDER
 // ──────────────────────────────────────────────
 function renderCalendar() {
   const today = new Date();
+  const cellW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell-w')) || 42;
   const totalDays = daysInMonth(currentYear, currentMonth);
   const head = document.getElementById('calHead');
   const body = document.getElementById('calBody');
@@ -1003,7 +1183,8 @@ function renderCalendar() {
   days.forEach(({d, iso, dow}) => {
     const isToday = iso === toISO(today.getFullYear(), today.getMonth(), today.getDate());
     const isWE = dow === 5 || dow === 6;
-    headHtml += `<th class="date-header-cell${isToday?' today-col':''}${isWE?' weekend':''}">
+    const holiName = holidays[iso];
+    headHtml += `<th class="date-header-cell${isToday?' today-col':''}${isWE?' weekend':''}${holiName?' holiday':''}"${holiName?` title="${escapeHtml(holiName)}"`:''}>
       <div class="dh-day">${DAY_TH[dow]}</div>
       <div class="dh-num">${d}</div>
     </th>`;
@@ -1031,9 +1212,10 @@ function renderCalendar() {
     }
 
     bodyHtml += `<tr>`;
-    bodyHtml += `<td class="room-label room-col" onclick="openAddModal('${room.num}')">
-      <div class="rl-num">${room.num}</div>
-      <span class="rl-type">${room.type}</span>
+    const typeColor = TYPE_COLORS[room.type] || 'var(--text)';
+    bodyHtml += `<td class="room-label room-col" onclick="openAddModal('${room.num}')" style="border-left:3px solid ${typeColor}">
+      <div class="rl-num" style="color:${typeColor}">${room.num}</div>
+      <span class="rl-type" style="color:${typeColor};opacity:.75">${room.type}</span>
     </td>`;
 
     // For each day, check if a booking starts here and render
@@ -1058,20 +1240,21 @@ function renderCalendar() {
     const ciDate = isoToDate(startISO);
     const coDate = isoToDate(endISO);
     const spanDays = Math.max(1, Math.round((coDate - ciDate) / 86400000));
-    const cellW = window.innerWidth <= 480 ? 36 : 42; // fix ค่าตายตัวแก้ Bug 4 ไปด้วย
     const barW = spanDays * cellW - 4;
-          const color = b.color || room.color;
-          const name = (b.name || '').substring(0, 14);
-          cellContent += `<div class="booking-bar" 
+          const color = /^#[0-9a-fA-F]{3,8}$/.test(b.color || '') ? b.color : room.color;
+          const name = escapeHtml((b.name || '').substring(0, 14));
+          const priceLabel = isAgodaBooking(b) ? 'Agoda' : (b.price ? b.price+' บาท' : '-');
+          const titleText = escapeHtml(`${b.name||''} | ${b.checkin}→${b.checkout} | ${b.phone||''} | ราคา: ${priceLabel}`);
+          cellContent += `<div class="booking-bar" data-id="${escapeHtml(b.id)}"
             style="left:2px;width:${barW}px;background:${color};top:${4 + barIndex * 20}px"
-            onclick="openEditModal(event,'${b.id}')" 
-            title="${b.name} | ${b.checkin}→${b.checkout} | ${b.phone||''} | ราคา: ${b.price?b.price+' บาท':'-'}"
+            onclick="openEditModal(event,'${b.id}')"
+            title="${titleText}"
           ><span class="bb-name">${name}</span></div>`;
-          barIndex++;  // ← เพิ่มตรงนี้
+          barIndex++;
         }
       });
 
-      bodyHtml += `<td class="day-cell${isToday?' today-col':''}${isWE?' weekend':''}" 
+      bodyHtml += `<td class="day-cell${isToday?' today-col':''}${isWE?' weekend':''}${holidays[iso]?' holiday':''}"
         onclick="cellClick(event,'${room.num}','${iso}')">${cellContent}</td>`;
     });
 
@@ -1127,8 +1310,11 @@ window.openAddModal = function(roomNum, iso) {
   // Populate room select
   populateRoomSelect(roomNum);
 
-  // Dates
-  const t = iso || toISO(currentYear, currentMonth, new Date().getDate());
+  // Dates — ถ้ากำลังดูเดือนปัจจุบันใช้วันนี้ ไม่งั้นใช้วันที่ 1 ของเดือนที่ดูอยู่
+  const now = new Date();
+  const defaultDay = (now.getFullYear() === currentYear && now.getMonth() === currentMonth)
+    ? now.getDate() : 1;
+  const t = iso || toISO(currentYear, currentMonth, defaultDay);
   document.getElementById('f_checkin').value = t;
   // checkout = next day
   const co = new Date(isoToDate(t).getTime() + 86400000);
@@ -1137,9 +1323,9 @@ window.openAddModal = function(roomNum, iso) {
   document.getElementById('f_name').value = '';
   document.getElementById('f_phone').value = '';
   document.getElementById('f_guests').value = 1;
-  document.getElementById('f_price').value = '';
   document.getElementById('f_note').value = '';
   document.getElementById('f_extrabed').value = 0;
+  document.getElementById('f_deposit').value = '';
 
   selectedColor = roomNum && ROOM_MAP[roomNum] ? ROOM_MAP[roomNum].color : BOOKING_COLORS[0];
   renderColorSwatches();
@@ -1164,11 +1350,25 @@ window.openEditModal = function(e, id) {
   document.getElementById('f_guests').value = b.guests || 1;
   document.getElementById('f_note').value = b.note || '';
   document.getElementById('f_extrabed').value = b.extrabed || 0;
+  document.getElementById('f_deposit').value = b.depositMethod || '';
 
   selectedColor = b.color || BOOKING_COLORS[0];
   renderColorSwatches();
   updateRoomType();
-  document.getElementById('f_price').value = b.price || '';
+  // ราคา: ถ้าเป็น Agoda เลือก option Agoda; ไม่งั้นเลือกตามราคาเดิม (เพิ่ม option ถ้าไม่อยู่ในลิสต์)
+  const priceSel = document.getElementById('f_price');
+  if (isAgodaBooking(b)) {
+    priceSel.value = 'agoda';
+  } else {
+    if (b.price && ![...priceSel.options].some(o => Number(o.value) === Number(b.price))) {
+      const opt = document.createElement('option');
+      opt.value = b.price;
+      opt.textContent = Number(b.price).toLocaleString() + ' บาท';
+      priceSel.appendChild(opt);
+    }
+    priceSel.value = b.price || '';
+  }
+  calcTotal();
 
   document.getElementById('modalOverlay').classList.add('show');
 };
@@ -1196,12 +1396,12 @@ function updateRoomType() {
   const type = rm ? rm.type : '';
   document.getElementById('f_type').value = type;
 
-  // อัพเดตตัวเลือกราคา
+  // อัพเดตตัวเลือกราคา + เพิ่มตัวเลือก Agoda (ราคาจัดการโดย Agoda — ไม่โชว์ราคาบนเว็บ)
   const prices = ROOM_PRICES[type] || [];
   const priceSelect = document.getElementById('f_price');
   priceSelect.innerHTML = prices.map(p =>
     `<option value="${p}">${p.toLocaleString()} บาท</option>`
-  ).join('');
+  ).join('') + '<option value="agoda">Agoda (ราคาจาก Agoda)</option>';
 
   priceSelect.onchange = calcTotal;
   document.getElementById('f_checkin').onchange = calcTotal;
@@ -1211,7 +1411,13 @@ function updateRoomType() {
 }
 
 function calcTotal() {
-  const price = parseFloat(document.getElementById('f_price').value) || 0;
+  const priceRaw = document.getElementById('f_price').value;
+  // Agoda: ไม่โชว์ราคาบนเว็บ
+  if (priceRaw === 'agoda') {
+    document.getElementById('f_total').value = 'Agoda (ราคาจาก Agoda)';
+    return;
+  }
+  const price = parseFloat(priceRaw) || 0;
   const checkin = document.getElementById('f_checkin').value;
   const checkout = document.getElementById('f_checkout').value;
   const extrabed = parseFloat(document.getElementById('f_extrabed').value) || 0;
@@ -1256,11 +1462,15 @@ window.saveBooking = function() {
   const name = document.getElementById('f_name').value.trim();
   const phone = document.getElementById('f_phone').value.trim();
   const guests = parseInt(document.getElementById('f_guests').value) || 1;
-  const price = parseFloat(document.getElementById('f_price').value) || 0;
+  const priceRaw = document.getElementById('f_price').value;
+  const isAgoda = priceRaw === 'agoda';
+  const price = isAgoda ? 0 : (parseFloat(priceRaw) || 0);
   const note = document.getElementById('f_note').value.trim();
   const extrabed = parseFloat(document.getElementById('f_extrabed').value) || 0;
+  const depositMethod = document.getElementById('f_deposit').value;   // '', 'cash', 'transfer'
+  const deposit = depositMethod ? 200 : 0;                            // เงินประกัน (แยกจากราคารวม)
   const nights = Math.max(1, Math.round((isoToDate(checkout) - isoToDate(checkin)) / 86400000));
-  const totalPrice = (price * nights) + (extrabed * nights);
+  const totalPrice = isAgoda ? 0 : (price * nights) + (extrabed * nights);
 
   if (!room || !checkin || !checkout || !name) {
     showToast('⚠️ กรุณากรอกข้อมูลที่จำเป็น (ห้อง, วันที่, ชื่อ)');
@@ -1283,8 +1493,8 @@ window.saveBooking = function() {
   }
 
   const data = { room, checkin, checkout, name, phone, guests, price,
-    extrabed, totalPrice, note,
-    color: selectedColor, updatedAt: Date.now() };
+    extrabed, totalPrice, deposit, depositMethod, isAgoda, note,
+    color: isAgoda ? AGODA_COLOR : selectedColor, updatedAt: Date.now() };
 
   const syncDot = document.getElementById('syncDot');
   syncDot.className = 'sync-dot syncing';
@@ -1330,9 +1540,9 @@ window.onSearch = function(q) {
 
   list.innerHTML = results.length === 0 ? '<p style="color:var(--text3);font-size:13px">ไม่พบผลการค้นหา</p>'
     : results.map(([id,b]) => `
-      <div class="search-item" onclick="searchJump('${id}')">
-        <div class="si-name">${b.name} — ห้อง ${b.room}</div>
-        <div class="si-detail">${b.checkin} → ${b.checkout} ${b.phone?'| 📞'+b.phone:''} ${b.price?'| ฿'+Number(b.price).toLocaleString():''}${b.note?'<br>📝 '+b.note.substring(0,60):''}</div>
+      <div class="search-item" onclick="searchJump('${escapeHtml(id)}')">
+        <div class="si-name">${escapeHtml(b.name||'')} — ห้อง ${escapeHtml(b.room||'')}</div>
+        <div class="si-detail">${escapeHtml(b.checkin||'')} → ${escapeHtml(b.checkout||'')} ${b.phone?'| 📞'+escapeHtml(b.phone):''} ${isAgodaBooking(b)?'| Agoda':(b.price?'| ฿'+Number(b.price).toLocaleString():'')}${b.note?'<br>📝 '+escapeHtml(b.note.substring(0,60)):''}</div>
       </div>`).join('');
 
   panel.classList.add('show');
@@ -1347,8 +1557,8 @@ window.searchJump = function(id) {
   currentMonth = ci.getMonth();
   renderCalendar();
   setTimeout(() => {
-    const todayCell = document.querySelector(`[title*="${b.name}"]`);
-    if (todayCell) todayCell.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'center' });
+    const cell = document.querySelector(`.booking-bar[data-id="${CSS.escape(id)}"]`);
+    if (cell) cell.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'center' });
     openEditModal({ stopPropagation: ()=>{} }, id);
   }, 150);
 };
@@ -1360,10 +1570,93 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     closeSearchPanel();
     closeModal();
+    closeExportModal();
+    closeHolidayModal();
   }
 });
 window.closeSearchPanel = function() {
   document.getElementById('searchResults').classList.remove('show');
+};
+
+// ──────────────────────────────────────────────
+// EXPORT EXCEL (รวม Agoda แยกไว้ด้านล่าง, ไม่มีคอลัมน์ VAT)
+// ──────────────────────────────────────────────
+window.openExportModal = function() {
+  if (!db) { showToast('❌ ยังไม่ได้เชื่อมต่อ Firebase'); return; }
+  // ค่าเริ่มต้น = เดือนที่กำลังดู (วันที่ 1 ถึงสิ้นเดือน)
+  const lastDay = daysInMonth(currentYear, currentMonth);
+  document.getElementById('exp_from').value = toISO(currentYear, currentMonth, 1);
+  document.getElementById('exp_to').value   = toISO(currentYear, currentMonth, lastDay);
+  document.getElementById('exportOverlay').classList.add('show');
+};
+
+window.closeExportModal = function() {
+  document.getElementById('exportOverlay').classList.remove('show');
+};
+
+window.exportExcel = function() {
+  if (!db) { showToast('❌ ยังไม่ได้เชื่อมต่อ Firebase'); return; }
+  if (typeof XLSX === 'undefined') { showToast('❌ โหลดไลบรารี Excel ไม่สำเร็จ'); return; }
+
+  const from = document.getElementById('exp_from').value;
+  const to   = document.getElementById('exp_to').value;
+  if (!from || !to) { showToast('⚠️ กรุณาเลือกช่วงวันที่'); return; }
+  if (from > to)    { showToast('⚠️ วันเริ่มต้องไม่เกินวันสิ้นสุด'); return; }
+
+  // กรองตามช่วง check-in [from, to] — รวมทั้งหมด แล้วแยก Agoda ไว้ด้านล่าง (คนละราคากัน)
+  const inRange = Object.values(bookings)
+    .filter(b => b.checkin >= from && b.checkin <= to);
+
+  if (!inRange.length) {
+    showToast('ไม่มีข้อมูลในช่วงที่เลือก');
+    return;
+  }
+
+  const byDate = (a, b) => a.checkin.localeCompare(b.checkin) || String(a.room).localeCompare(String(b.room));
+  const normal = inRange.filter(b => !isAgodaBooking(b)).sort(byDate);
+  const agoda  = inRange.filter(b =>  isAgodaBooking(b)).sort(byDate);
+
+  const toRow = (b) => {
+    const ciDate = isoToDate(b.checkin);
+    const nights = Math.max(1, Math.round((isoToDate(b.checkout) - isoToDate(b.checkin)) / 86400000));
+    const rm     = ROOM_MAP[b.room] || {};
+    const ag     = isAgodaBooking(b);
+    const price  = Number(b.price) || 0;
+    const depoM  = b.depositMethod === 'cash' ? 'เงินสด'
+                 : b.depositMethod === 'transfer' ? 'โอน' : '';
+    return {
+      'วัน'         : `${ciDate.getDate()}/${ciDate.getMonth()+1}/${String(ciDate.getFullYear()+543).slice(-2)}`,
+      'เลขห้อง'     : b.room,
+      'ประเภทห้อง'  : rm.type || '',
+      'ชื่อผู้พัก'  : b.name  || '',
+      'Check-in'    : b.checkin,
+      'Check-out'   : b.checkout,
+      'จำนวนคืน'    : nights,
+      'ราคา/คืน'    : ag ? 'Agoda' : price,
+      'ราคารวม'     : ag ? 'Agoda' : (Number(b.totalPrice) || price * nights),
+      'ประกัน'      : b.deposit ? Number(b.deposit) : '',
+      'วิธีชำระประกัน': depoM,
+    };
+  };
+
+  const header = ['วัน','เลขห้อง','ประเภทห้อง','ชื่อผู้พัก','Check-in','Check-out','จำนวนคืน','ราคา/คืน','ราคารวม','ประกัน','วิธีชำระประกัน'];
+  const rows = normal.map(toRow);
+  if (agoda.length) {
+    rows.push({});                                   // แถวว่างคั่น
+    rows.push({ 'วัน': '── Agoda (คนละราคา) ──' });   // หัวข้อกลุ่ม Agoda
+    agoda.forEach(b => rows.push(toRow(b)));
+  }
+
+  const ws = XLSX.utils.json_to_sheet(rows, { header });
+  ws['!cols'] = [
+    {wch:9},{wch:8},{wch:18},{wch:22},{wch:12},{wch:12},{wch:8},{wch:10},{wch:12},{wch:8},{wch:14}
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Bookings');
+  XLSX.writeFile(wb, `booking_${from}_${to}.xlsx`);
+  closeExportModal();
+  showToast(`✅ Export ${normal.length + agoda.length} รายการ (Agoda ${agoda.length})`);
 };
 
 // ──────────────────────────────────────────────
