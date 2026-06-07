@@ -517,6 +517,7 @@
     transition: opacity .15s;
   }
   .btn-save:hover { opacity: .85; }
+  .btn-save:disabled { opacity: .5; cursor: not-allowed; }
   .btn-delete {
     background: rgba(255,92,92,.15);
     border: 1px solid rgba(255,92,92,.3);
@@ -851,7 +852,7 @@
     </div>
 
     <div class="form-actions">
-      <button class="btn-save" onclick="saveBooking()">💾 บันทึก</button>
+      <button class="btn-save" id="btnSave" onclick="saveBooking()">💾 บันทึก</button>
       <button class="btn-delete" id="btnDelete" onclick="deleteBooking()" style="display:none">🗑</button>
       <button class="btn-cancel" onclick="closeModal()">ยกเลิก</button>
     </div>
@@ -1017,6 +1018,7 @@ let editingId = null;
 let selectedColor = BOOKING_COLORS[0];
 let unsubscribe = null;
 let unsubHolidays = null;
+let isSaving = false;
 
 // ──────────────────────────────────────────────
 // CONFIG
@@ -1242,7 +1244,7 @@ function renderCalendar() {
     renderedIds.add(b.id);
     // คำนวณจากวันจริงที่แสดงในเดือนนี้
     const startISO = isCarryOver ? iso : b.checkin;
-    const lastDayISO = toISO(currentYear, currentMonth, daysInMonth(currentYear, currentMonth) + 1);
+    const lastDayISO = toISO(currentYear, currentMonth + 1, 1);   // วันที่ 1 ของเดือนถัดไป (clamp ปลายแถบ)
     const endISO = b.checkout <= lastDayISO ? b.checkout : lastDayISO;
     const ciDate = isoToDate(startISO);
     const coDate = isoToDate(endISO);
@@ -1500,6 +1502,7 @@ function renderColorSwatches() {
 // ──────────────────────────────────────────────
 window.saveBooking = function() {
   if (!db) { showToast('❌ ยังไม่ได้เชื่อมต่อ Firebase'); return; }
+  if (isSaving) return;   // กันกดซ้ำระหว่างกำลังบันทึก
 
   const room = document.getElementById('f_room').value;
   const checkin = document.getElementById('f_checkin').value;
@@ -1560,15 +1563,22 @@ window.saveBooking = function() {
   const syncDot = document.getElementById('syncDot');
   syncDot.className = 'sync-dot syncing';
 
+  isSaving = true;
+  const saveBtn = document.getElementById('btnSave');
+  if (saveBtn) saveBtn.disabled = true;
+  const done = () => { isSaving = false; if (saveBtn) saveBtn.disabled = false; };
+
   if (editingId) {
     set(ref(db, 'bookings/' + editingId), data)
       .then(() => { showToast('✅ อัพเดตการจองแล้ว'); closeModal(); })
-      .catch(e => showToast('❌ ' + e.message));
+      .catch(e => showToast('❌ ' + e.message))
+      .finally(done);
   } else {
     data.createdAt = Date.now();
     push(ref(db, 'bookings'), data)
       .then(() => { showToast('✅ บันทึกการจองแล้ว'); closeModal(); })
-      .catch(e => showToast('❌ ' + e.message));
+      .catch(e => showToast('❌ ' + e.message))
+      .finally(done);
   }
 };
 
@@ -1583,7 +1593,13 @@ window.deleteBooking = function() {
 // ──────────────────────────────────────────────
 // SEARCH
 // ──────────────────────────────────────────────
+let searchTimer;
 window.onSearch = function(q) {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => runSearch(q), 250);
+};
+
+function runSearch(q) {
   q = q.trim().toLowerCase();
   if (!q) { closeSearchPanel(); return; }
 
