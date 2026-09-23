@@ -810,11 +810,11 @@
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>ที่นอนเสริม</label>
+        <label>เตียงเสริม</label>
         <select id="f_extrabed">
           <option value="0">ไม่เสริม (0 บาท)</option>
-          <option value="150">เสริมชุดเครื่องนอน (+150 บาท/คืน)</option>
-          <option value="300">เสริมที่นอน (+300 บาท/คืน)</option>
+          <option value="150">พักเพิ่มไม่เสริม (+150 บาท/คืน)</option>
+          <option value="300">เสริมเตียง (+300 บาท/คืน)</option>
         </select>
       </div>
       <div class="form-group">
@@ -956,8 +956,8 @@ const FLOORS = [
     {num:'401', type:'Family Suite', color:'#ffffff'},
     {num:'402', type:'Superior Room', color:'#ffffff'},
     {num:'403', type:'Superior Room Twin', color:'#ffffff'},
-    {num:'404', type:'Sweet Room', color:'#ffffff'},
-    {num:'405', type:'Sweet Room', color:'#ffffff'},
+    {num:'404', type:'Deluxe Room', color:'#ffffff'},
+    {num:'405', type:'Deluxe Room', color:'#ffffff'},
     {num:'406', type:'Family Suite', color:'#ffffff'},
     {num:'407', type:'Family Suite', color:'#ffffff'},
   ]},
@@ -990,12 +990,12 @@ const BOOKING_COLORS = [
 ];
 // ราคาห้อง = [ราคาวันธรรมดา (อา-พฤ), ราคาวันหยุด (ศ-ส และวันหยุดนักขัตฤกษ์)]
 const ROOM_PRICES = {
-  'Superior Room':      [600, 850],
-  'Superior Room Twin': [600, 850],
+  'Superior Room':      [650, 850],
+  'Superior Room Twin': [650, 850],
   'Pool View':          [1100, 1300],
   'Deluxe Pool View':   [1200, 1400],
   'Family Suite':       [1400, 1600],
-  'Sweet Room':         [600, 850],
+  'Deluxe Room':        [700, 900],
 };
 // สีเลขห้องตามประเภท (ปรับให้สว่างพออ่านบนธีมมืด)
 const TYPE_COLORS = {
@@ -1004,7 +1004,7 @@ const TYPE_COLORS = {
   'Family Suite':       '#5a7bef', // น้ำเงิน
   'Pool View':          '#38bdf8', // ฟ้า
   'Deluxe Pool View':   '#22d3ee', // ฟ้าเขียว
-  'Sweet Room':         '#ff5c5c', // แดง
+  'Deluxe Room':        '#ff5c5c', // แดง
 };
 // สีแถบ Agoda — ใช้ระบุการจอง Agoda (พร้อม flag isAgoda สำหรับข้อมูลใหม่)
 const AGODA_COLOR = '#ff7b00';
